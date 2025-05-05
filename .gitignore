@@ -1,0 +1,52 @@
+*.js
+!jest.config.js
+*.d.ts
+.eslintcache
+.DS_Store
+
+# Python info packages
+*.egg-info
+
+# Python cache files
+__pycache__
+.pytest_cache
+
+# PyCharm
+/.idea/
+.idea
+
+# VScode
+.vscode
+.history
+node_modules
+coverage
+.coverage
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Transpiled files
+dist
+build
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+# data generation
+.tmp_data.*
+
+# API swagger generation
+service_output.yaml
+service_clean.yaml
+
+# Lambda layer construct: ignore requirements.txt and build artifacts
+requirements.txt
+*/**/requirements.txt
+tmp*/*
