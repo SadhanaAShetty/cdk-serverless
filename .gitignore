@@ -47,6 +47,5 @@ service_output.yaml
 service_clean.yaml
 
 # Lambda layer construct: ignore requirements.txt and build artifacts
-requirements.txt
-*/**/requirements.txt
+
 tmp*/*
