@@ -17,15 +17,20 @@ class OrderProcessingBackendStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # #ses
-        # sender_email = "sadhanashetty30@gmail.com"
-        # receiver_email = "shettysadhana381@gmail.com"
+        
 
-        ses_email_identity = 'sadhanashetty30@gmail.com'
-        receiver_email = "shettysadhana381@gmail.com"
+        sender = ssm.StringParameter.from_string_parameter_name(
+            self, "SesSenderIdentityParam",
+            string_parameter_name="/ses/parameter/email/sender"
+        ).string_value
+        receiver= ssm.StringParameter.from_string_parameter_name(
+            self, "SesReceiverIdentityParam",
+            string_parameter_name="/ses/parameter/email/receiver"
+        ).string_value
+
+        ses_service = ses.EmailIdentity.from_email_identity_name(self, "ExistingEmailNotification", sender)
+        ses_receiver_service = ses.EmailIdentity.from_email_identity_name(self, "ExistingEmailReceiver", receiver)
         
-        
-        ses_service = ses.EmailIdentity.from_email_identity_name(self, "ExistingEmailNotification", ses_email_identity)
         
         
         topic_param = ssm.StringParameter.from_string_parameter_name(
@@ -56,11 +61,11 @@ class OrderProcessingBackendStack(Stack):
                                          "NotifyLambda",
                                          runtime=lmbd.Runtime.PYTHON_3_12,
                                          handler="notify.lambda_handler",
-                                         code=lmbd.Code.from_asset("assets/functions"),
+                                         code=lmbd.Code.from_asset("order_processing/assets/functions"),
                                          environment={
                                             "QUEUE_URL": sqs_notify_queue.queue_url,
-                                            "sender_email" : ses_email_identity,
-                                            "receiver_email" : receiver_email
+                                            "sender_email" : sender,
+                                            "receiver_email" : receiver
                                         }
                                         )
 
@@ -68,11 +73,11 @@ class OrderProcessingBackendStack(Stack):
                                             "InventoryLambda",
                                             runtime=lmbd.Runtime.PYTHON_3_12,
                                             handler="inventory.lambda_handler",
-                                            code=lmbd.Code.from_asset("assets/functions"),
+                                            code=lmbd.Code.from_asset("order_processing/assets/functions"),
                                             environment={
                                                 "QUEUE_URL": sqs_inventory_queue.queue_url,
-                                                "sender_email" : ses_email_identity,
-                                                "receiver_email" : receiver_email
+                                                "sender_email" : sender,
+                                                "receiver_email" : receiver
                                             }   
                                            )
 
@@ -80,16 +85,21 @@ class OrderProcessingBackendStack(Stack):
                                            "ShipmentLambda",
                                            runtime=lmbd.Runtime.PYTHON_3_12,
                                            handler="shipment.lambda_handler",
-                                           code=lmbd.Code.from_asset("assets/functions"),
+                                           code=lmbd.Code.from_asset("order_processing/assets/functions"),
                                            environment={
                                                 "QUEUE_URL": sqs_shipment_queue.queue_url,
-                                                "sender_email" : ses_email_identity,
-                                                "receiver_email" : receiver_email
+                                                "sender_email" : sender,
+                                                "receiver_email" : receiver
                                             }
                                          )
         ses_service.grant_send_email(notify_lambda)
         ses_service.grant_send_email(inventory_lambda)
         ses_service.grant_send_email(shipment_lambda)
+
+        ses_receiver_service.grant_send_email(notify_lambda)
+        ses_receiver_service.grant_send_email(inventory_lambda)
+        ses_receiver_service.grant_send_email(shipment_lambda)
+        
 
         #sqs
         sqs_notify_queue.grant_send_messages(notify_lambda)

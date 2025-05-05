@@ -39,7 +39,7 @@ class OrderProcessingFrontendStack(Stack):
             self, "OrderProcessing",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="order_processing.lambda_handler",
-            code=lmbda.Code.from_asset("assets/functions"),
+            code=lmbda.Code.from_asset("order_processing/assets/functions"),
             environment={
                 "TOPIC_ARN": topic.topic_arn
             }
@@ -129,3 +129,5 @@ class OrderProcessingFrontendStack(Stack):
             string_value=topic.topic_arn,
             tier=ssm.ParameterTier.STANDARD
         )
+
+       
