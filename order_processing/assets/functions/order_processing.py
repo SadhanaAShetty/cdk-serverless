@@ -57,7 +57,7 @@ def order_call():
 
     confirmation = {
         "message": "Order received successfully! Thank you for your order. We will process it shortly.",
-        "your_is": order_id,
+        "order_id": order_id,
         "customer_id": data["customer_id"],
         "item": data["item"],
         "address" :data["address"],
