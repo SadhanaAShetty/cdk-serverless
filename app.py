@@ -14,6 +14,7 @@ account = os.getenv("AWS_ACCOUNT_ID")
 region = os.getenv("AWS_REGION")
 
 app = cdk.App()
+#OrderProcessing
 frontend_stack = OrderProcessingFrontendStack(app, "OrderProcessingFrontendStack",
    env=cdk.Environment(account=account, region=region),
     )
