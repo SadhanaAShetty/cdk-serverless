@@ -41,10 +41,10 @@ class NotifyMyTurnBackendStack(Stack):
         dynamo = ddb.TableV2.from_table_name(self, "MyTable", "dynamo")                      
 
         #lambda
-        HourlyNotifier = lmbd.Function(self, 
+        hourly_notifier = lmbd.Function(self, 
                                          "HourlyLambda",
                                          runtime=lmbd.Runtime.PYTHON_3_12,
-                                         handler="HourlyNotifier.lambda_handler",
+                                         handler="hourly_notifier.lambda_handler",
                                          code=lmbd.Code.from_asset("NotifyMyTurn/assets"),
                                          environment={
                                             "QUEUE_URL": sqs_hour_queue.queue_url,
@@ -54,10 +54,10 @@ class NotifyMyTurnBackendStack(Stack):
                                         }
                                         )
 
-        DailyNotifier = lmbd.Function(self, 
+        daily_notifier = lmbd.Function(self, 
                                             "DailyLambda",
                                             runtime=lmbd.Runtime.PYTHON_3_12,
-                                            handler="DailyNotifier.lambda_handler",
+                                            handler="daily_notifier.lambda_handler",
                                             code=lmbd.Code.from_asset("NotifyMyTurn/assets"),
                                             environment={
                                                 "QUEUE_URL": sqs_day_queue.queue_url,
@@ -70,11 +70,11 @@ class NotifyMyTurnBackendStack(Stack):
 
         
 
-        dynamo.grant_read_write_data(HourlyNotifier)
-        dynamo.grant_read_write_data(DailyNotifier)
+        dynamo.grant_read_write_data(hourly_notifier)
+        dynamo.grant_read_write_data(daily_notifier)
 
 
-        HourlyNotifier.add_to_role_policy(
+        hourly_notifier.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query"],
                 resources=[
@@ -84,23 +84,23 @@ class NotifyMyTurnBackendStack(Stack):
             )
         )
         
-        ses_service.grant_send_email(HourlyNotifier)
-        ses_service.grant_send_email(DailyNotifier)
+        ses_service.grant_send_email(hourly_notifier)
+        ses_service.grant_send_email(daily_notifier)
        
 
-        ses_receiver_service.grant_send_email(HourlyNotifier)
-        ses_receiver_service.grant_send_email(DailyNotifier)
+        ses_receiver_service.grant_send_email(hourly_notifier)
+        ses_receiver_service.grant_send_email(daily_notifier)
         
         
 
         #sqs
-        sqs_hour_queue.grant_send_messages(HourlyNotifier)
-        sqs_day_queue.grant_send_messages(DailyNotifier)
+        sqs_hour_queue.grant_send_messages(hourly_notifier)
+        sqs_day_queue.grant_send_messages(daily_notifier)
         
 
         #eventsource
-        HourlyNotifier.add_event_source(event_sources.SqsEventSource(sqs_hour_queue))
-        DailyNotifier.add_event_source(event_sources.SqsEventSource(sqs_day_queue))
+        hourly_notifier.add_event_source(event_sources.SqsEventSource(sqs_hour_queue))
+        daily_notifier.add_event_source(event_sources.SqsEventSource(sqs_day_queue))
 
         #3 hours
         every_3_hours_rule = events.Rule(
@@ -114,7 +114,7 @@ class NotifyMyTurnBackendStack(Stack):
             )
         )
 
-        every_3_hours_rule.add_target(targets.LambdaFunction(HourlyNotifier))
+        every_3_hours_rule.add_target(targets.LambdaFunction(hourly_notifier))
 
         
 
@@ -130,5 +130,5 @@ class NotifyMyTurnBackendStack(Stack):
         )
         
 
-        every_24_hours_rule.add_target(targets.LambdaFunction(DailyNotifier))
+        every_24_hours_rule.add_target(targets.LambdaFunction(daily_notifier))
      

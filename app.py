@@ -5,8 +5,8 @@ import aws_cdk as cdk
 from dotenv import load_dotenv
 
 
-from NotifyMyTurn.NotifyMyTurnFrontend import NotifyMyTurnFrontendStack
-from NotifyMyTurn.NotifyMyTurnBackend import NotifyMyTurnBackendStack
+from notify_my_turn.notify_frontend import NotifyMyTurnFrontendStack
+from notify_my_turn.notify_backend import NotifyMyTurnBackendStack
 
 
 load_dotenv()

@@ -53,7 +53,7 @@ class NotifyMyTurnFrontendStack(Stack):
         task_handler = lmbda.Function(
             self, "TaskSchedulerLambda",
             runtime=lmbda.Runtime.PYTHON_3_12,
-            handler="SchedulerLambda.lambda_handler",
+            handler="scheduler_lambda.lambda_handler",
             code=lmbda.Code.from_asset("NotifyMyTurn/assets")
             
         )
