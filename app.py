@@ -5,21 +5,36 @@ import aws_cdk as cdk
 from dotenv import load_dotenv
 
 
+from NotifyMyTurn.NotifyMyTurnFrontend import NotifyMyTurnFrontendStack
+from NotifyMyTurn.NotifyMyTurnBackend import NotifyMyTurnBackendStack
 
-from order_processing.order_processing_frontend_stack import OrderProcessingFrontendStack
-from order_processing.order_processing_backend_stack import OrderProcessingBackendStack
 
 load_dotenv()
 account = os.getenv("AWS_ACCOUNT_ID")
 region = os.getenv("AWS_REGION")
 
 app = cdk.App()
-#OrderProcessing
-frontend_stack = OrderProcessingFrontendStack(app, "OrderProcessingFrontendStack",
-   env=cdk.Environment(account=account, region=region),
-    )
-backend_stack = OrderProcessingBackendStack(app, "OrderProcessingBackendStack",
-   env=cdk.Environment(account=account, region=region)
-    )
+
+frontend_stack = NotifyMyTurnFrontendStack(app, "NotifyMyTurnFrontendStack",
+                                            env =cdk.Environment(account = account, region = region),
+)
+backend_stack = NotifyMyTurnBackendStack(app, "NotifyMyTurnBackendStack",
+                                            env =cdk.Environment(account = account, region = region),
+
+)
 backend_stack.add_dependency(frontend_stack)
 app.synth()
+
+
+#OrderProcessing
+# from order_processing.order_processing_frontend_stack import OrderProcessingFrontendStack
+# from order_processing.order_processing_backend_stack import OrderProcessingBackendStack
+
+# frontend_stack = OrderProcessingFrontendStack(app, "OrderProcessingFrontendStack",
+#    env=cdk.Environment(account=account, region=region),
+#     )
+# backend_stack = OrderProcessingBackendStack(app, "OrderProcessingBackendStack",
+#    env=cdk.Environment(account=account, region=region)
+#     )
+# backend_stack.add_dependency(frontend_stack)
+
