@@ -48,13 +48,17 @@ class NotifyMyTurnFrontendStack(Stack):
             )
         )       
         
+        powertool_layer= lmbda.LayerVersion.from_layer_version_arn(self,"Layer",
+            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
+        )
 
         #lambda
         task_handler = lmbda.Function(
             self, "TaskSchedulerLambda",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="scheduler_lambda.lambda_handler",
-            code=lmbda.Code.from_asset("NotifyMyTurn/assets")
+            layers = [powertool_layer],
+            code=lmbda.Code.from_asset("notify_my_turn/assets")
             
         )
 

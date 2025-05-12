@@ -38,14 +38,17 @@ class NotifyMyTurnBackendStack(Stack):
         sqs_hour_queue = sqs.Queue(self, "HourlyQueue")
         sqs_day_queue = sqs.Queue(self,"DailyQueue")
                                      
-        dynamo = ddb.TableV2.from_table_name(self, "MyTable", "dynamo")                      
-
+        dynamo = ddb.TableV2.from_table_name(self, "MyTable", "dynamo") 
+        powertool_layer= lmbd.LayerVersion.from_layer_version_arn(self,"Layer",
+            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
+        )                                          
         #lambda
         hourly_notifier = lmbd.Function(self, 
                                          "HourlyLambda",
                                          runtime=lmbd.Runtime.PYTHON_3_12,
                                          handler="hourly_notifier.lambda_handler",
-                                         code=lmbd.Code.from_asset("NotifyMyTurn/assets"),
+                                         code=lmbd.Code.from_asset("notify_my_turn/assets"),
+                                         layers = [powertool_layer],
                                          environment={
                                             "QUEUE_URL": sqs_hour_queue.queue_url,
                                             "sender_email" : sender,
@@ -58,7 +61,8 @@ class NotifyMyTurnBackendStack(Stack):
                                             "DailyLambda",
                                             runtime=lmbd.Runtime.PYTHON_3_12,
                                             handler="daily_notifier.lambda_handler",
-                                            code=lmbd.Code.from_asset("NotifyMyTurn/assets"),
+                                            code=lmbd.Code.from_asset("notify_my_turn/assets"),
+                                            layers = [powertool_layer],
                                             environment={
                                                 "QUEUE_URL": sqs_day_queue.queue_url,
                                                 "sender_email" : sender,

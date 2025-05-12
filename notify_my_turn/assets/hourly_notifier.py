@@ -44,6 +44,7 @@ def process_appointments():
         time_stamp = item.get("time_stamp")
         location = item.get("location", "Not Provided")
         address = item.get("address", "Not Provided")
+        branch =item.get("branch")
 
         event_info = (
             f"Appointment for {user_name} at {location}, {address}, scheduled at {time_stamp}.\n"
@@ -54,7 +55,7 @@ def process_appointments():
         tracer.put_annotation("user", user_name)
         tracer.put_metadata("event_details", item)
 
-        ses.send_email(
+        sent = ses.send_email(
             Source=sender_email,
             Destination={"ToAddresses": [receiver_email]},
             Message={
@@ -63,6 +64,20 @@ def process_appointments():
             }
         )
         logger.info(f"Email sent to {receiver_email} for event: {event_info}")
+
+        logger.info(f"SES response: {sent}")
+
+        message_id = sent.get("MessageId")
+        if message_id:
+            table.put_item(Item={
+                "user_name": f"{user_name}",
+                "time_stamp": time_stamp, 
+                "status": "sent",
+                "message_id": message_id,
+                "address": address,
+                "branch" : branch, 
+                "location" :location
+        })
 
     return len(items)
 
