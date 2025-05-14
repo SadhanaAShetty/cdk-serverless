@@ -8,9 +8,12 @@ from aws_cdk import (
     aws_logs as logs,
     aws_sns as sns,
     aws_ssm as ssm,
-    aws_events as events
+    aws_events as events,
+    aws_ses as ses,
+    aws_iam as iam
 )
 from constructs import Construct
+
 
 class NotifyMyTurnFrontendStack(Stack):
 
@@ -34,39 +37,52 @@ class NotifyMyTurnFrontendStack(Stack):
                 write_capacity=ddb.Capacity.autoscaled(max_capacity=3)
             ),
             removal_policy=RemovalPolicy.DESTROY
-        )
-
-        dynamo.add_global_secondary_index(
-            index_name="LocationTimeIndex",
-            partition_key=ddb.Attribute(
-                name="branch",
-                type=ddb.AttributeType.STRING
-            ),
-            sort_key=ddb.Attribute(
-                name="time_stamp",
-                type=ddb.AttributeType.STRING
-            )
-        )       
+        ) 
         
         powertool_layer= lmbda.LayerVersion.from_layer_version_arn(self,"Layer",
             "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
         )
 
-        #lambda
+        schedule_creator = lmbda.Function.from_function_name(self, "schedule_creator", "schedule_creator")
+
+        sender = ssm.StringParameter.from_string_parameter_name(
+            self, "SesSenderIdentityParam",
+            string_parameter_name="/ses/parameter/email/sender"
+        ).string_value
+        
+        receiver = ssm.StringParameter.from_string_parameter_name(
+            self, "SesReceiverIdentityParam",
+            string_parameter_name="/ses/parameter/email/receiver"
+        ).string_value
+
+
         task_handler = lmbda.Function(
-            self, "TaskSchedulerLambda",
+            self, "TaskHandler",
             runtime=lmbda.Runtime.PYTHON_3_12,
-            handler="scheduler_lambda.lambda_handler",
+            handler="appointment_store_ddb.lambda_handler",
             layers = [powertool_layer],
-            code=lmbda.Code.from_asset("notify_my_turn/assets")
-            
+            code=lmbda.Code.from_asset("notify_my_turn/assets"),
+            environment={
+                "TABLE_NAME": dynamo.table_name,
+                "SCHEDULE_CREATOR_LAMBDA_ARN": schedule_creator.function_arn,
+                "sender_email": sender,
+                "receiver_email": receiver
+            }
         )
 
-        # Grant permissions
+
+        task_handler.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["lambda:InvokeFunction"],
+                resources=[schedule_creator.function_arn]  
+            )
+        )
+
+        schedule_creator.grant_invoke(task_handler)
         dynamo.grant_read_write_data(task_handler)
 
         api = apigw.RestApi(
-            self, "TaskScheduleraApi",
+            self, "TaskSchedulerApi",
             rest_api_name="MyTaskScheduler",
             deploy=False
         )
@@ -79,7 +95,7 @@ class NotifyMyTurnFrontendStack(Stack):
         )
         
 
-        # Logging
+       
         log_group = logs.LogGroup(
             self, "DevLogs",
             retention=logs.RetentionDays.ONE_DAY
@@ -135,6 +151,7 @@ class NotifyMyTurnFrontendStack(Stack):
             ]
         )
 
+        
         
 
 

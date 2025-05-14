@@ -1,94 +1,100 @@
-import os
 import boto3
+import json
+import os
 from datetime import datetime, timedelta, timezone
-from boto3.dynamodb.conditions import Key  
-from aws_lambda_powertools import Logger, Tracer, Metrics
-from aws_lambda_powertools.metrics import MetricUnit
+from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
+dynamodb = boto3.resource('dynamodb')
+ses = boto3.client('ses')
 
-logger = Logger()
 tracer = Tracer()
-metrics = Metrics(namespace="AppointmentService")
+logger = Logger()
 
-
-dynamodb = boto3.resource("dynamodb")
-ses = boto3.client("ses")
-
-
+sender_email = os.environ['sender_email']  
+receiver_email = os.environ['receiver_email'] 
 TABLE_NAME = os.environ["TABLE_NAME"]
 table = dynamodb.Table(TABLE_NAME)
-sender_email = os.environ["sender_email"]
-receiver_email = os.environ["receiver_email"]
+
 
 @tracer.capture_method
-def process_appointments():
-    current_time = datetime.now(timezone.utc)
-    three_hours_later = current_time + timedelta(minutes=5)
-
-   
-    current_timestamp = current_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-    future_timestamp = three_hours_later.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    response = table.query(
-    IndexName='LocationTimeIndex',
-    KeyConditionExpression=Key('branch').eq('rotterdam') & Key('time_stamp').between(current_timestamp, future_timestamp)
-    )
-
-    items = response.get("Items", [])
-    metrics.add_metric(name="EventsProcessed", unit=MetricUnit.Count, value=len(items))
-    logger.info(f"Found {len(items)} upcoming events.")
-
-    for item in items:
-        user_name = item.get("user_name", "Unknown User")
-        time_stamp = item.get("time_stamp")
-        location = item.get("location", "Not Provided")
-        address = item.get("address", "Not Provided")
-        branch =item.get("branch")
-
-        event_info = (
-            f"Appointment for {user_name} at {location}, {address}, scheduled at {time_stamp}.\n"
-            f"This is your 3-hour reminder.\n"
-            f"Please arrive 10 minutes early."
-        )
-
-        tracer.put_annotation("user", user_name)
-        tracer.put_metadata("event_details", item)
-
-        sent = ses.send_email(
+def send_email(to_email, subject, body):
+    try:
+        response = ses.send_email(
             Source=sender_email,
-            Destination={"ToAddresses": [receiver_email]},
+            Destination={'ToAddresses': [to_email]},
             Message={
-                "Subject": {"Data": "Upcoming Appointment Reminder"},
-                "Body": {"Text": {"Data": event_info}},
+                'Subject': {'Data': subject},
+                'Body': {'Text': {'Data': body}}
             }
         )
-        logger.info(f"Email sent to {receiver_email} for event: {event_info}")
+        logger.info(f"Email sent successfully: {response}")
+    except Exception as e:
+        logger.error(f"Error sending email: {str(e)}")
 
-        logger.info(f"SES response: {sent}")
 
-        message_id = sent.get("MessageId")
-        if message_id:
-            table.put_item(Item={
-                "user_name": f"{user_name}",
-                "time_stamp": time_stamp, 
-                "status": "sent",
-                "message_id": message_id,
-                "address": address,
-                "branch" : branch, 
-                "location" :location
-        })
+@tracer.capture_method
+def handle_event(event, context):
+    logger.info("Scheduler Lambda started")
 
-    return len(items)
+
+    appointment_id = event.get('detail', {}).get('appointment_id')
+    if not appointment_id:
+        logger.error("Missing appointment_id in event detail.")
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "Missing appointment_id"})
+        }
+
+    try:
+        response = table.get_item(Key={'appointment_id': appointment_id})
+    except Exception as e:
+        logger.error(f"Error fetching data from DynamoDB: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Failed to fetch appointment"})
+        }
+
+    appointment = response.get('Item')
+    if not appointment:
+        logger.error(f"Appointment not found for ID: {appointment_id}")
+        return {
+            "statusCode": 404,
+            "body": json.dumps({"error": "Appointment not found"})
+        }
+
+    
+    time_stamp = datetime.strptime(appointment['time_stamp'], '%Y-%m-%dT%H:%M:%S')
+    user_email = appointment.get('email', receiver_email)
+    user_name = appointment.get('name', 'User')
+    location = appointment.get('location', 'the appointment center')
+
+    
+    event_info = (
+        f"Hello {user_name},\n\n"
+        f"This is a reminder that you have an appointment at {location} "
+        f"scheduled at {time_stamp.strftime('%Y-%m-%d %H:%M')}.\n"
+        f"This is your 3-hour reminder. Please arrive 10 minutes early.\n"
+    )
+
+    now = datetime.now(timezone.utc)
+    reminder_24hr = time_stamp - timedelta(hours=24)
+    reminder_3hr = time_stamp - timedelta(hours=3)
+
+    
+    if reminder_24hr <= now < reminder_24hr + timedelta(minutes=5):
+        send_email(user_email, "24-Hour Appointment Reminder", event_info)
+
+    if reminder_3hr <= now < reminder_3hr + timedelta(minutes=5):
+        send_email(user_email, "3-Hour Appointment Reminder", event_info)
+
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"message": "Reminders processed successfully"})
+    }
+
 
 @tracer.capture_lambda_handler
 @logger.inject_lambda_context
 def lambda_handler(event: dict, context: LambdaContext):
-    logger.info("Lambda handler invoked")
-    try:
-        count = process_appointments()
-        return {"statusCode": 200, "body": f"Processed {count} events."}
-    except Exception as e:
-        logger.exception("Error processing events")
-        metrics.add_metric(name="ProcessingFailures", unit=MetricUnit.Count, value=1)
-        return {"statusCode": 500, "body": str(e)}
+    return handle_event(event, context)

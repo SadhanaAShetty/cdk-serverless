@@ -15,13 +15,15 @@ region = os.getenv("AWS_REGION")
 
 app = cdk.App()
 
-frontend_stack = NotifyMyTurnFrontendStack(app, "NotifyMyTurnFrontendStack",
+frontend_stack = NotifyMyTurnFrontendStack(app, "NotifyMyTurnFrontendStack", 
                                             env =cdk.Environment(account = account, region = region),
 )
-backend_stack = NotifyMyTurnBackendStack(app, "NotifyMyTurnBackendStack",
+backend_stack = NotifyMyTurnBackendStack(app, "NotifyMyTurnBackendStack", 
                                             env =cdk.Environment(account = account, region = region),
 
 )
+
+
 backend_stack.add_dependency(frontend_stack)
 app.synth()
 
