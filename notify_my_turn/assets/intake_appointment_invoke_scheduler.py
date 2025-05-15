@@ -11,7 +11,7 @@ from aws_lambda_powertools.utilities.typing import LambdaContext
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('dynamo')
-scheduler_lambda_arn = os.environ["SCHEDULER_LAMBDA_ARN"]
+scheduler_lambda_arn = os.environ["SCHEDULE_CREATOR_LAMBDA_ARN"]
 sender_email = os.environ['sender_email']   
 receiver_email = os.environ['receiver_email']
 lambda_client = boto3.client("lambda")

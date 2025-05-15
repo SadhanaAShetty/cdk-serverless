@@ -6,7 +6,6 @@ from aws_cdk import (
     RemovalPolicy,
     aws_lambda as lmbda,
     aws_logs as logs,
-    aws_sns as sns,
     aws_ssm as ssm,
     aws_events as events,
     aws_ses as ses,
@@ -20,12 +19,11 @@ class NotifyMyTurnFrontendStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-
         dynamo = ddb.TableV2(
             self, "TaskSchedulerDb",
             table_name="dynamo",
             partition_key=ddb.Attribute(
-                name="user_name",
+                name="appointment_id",
                 type=ddb.AttributeType.STRING
             ),
             sort_key=ddb.Attribute(
@@ -38,13 +36,10 @@ class NotifyMyTurnFrontendStack(Stack):
             ),
             removal_policy=RemovalPolicy.DESTROY
         ) 
-        
-        powertool_layer= lmbda.LayerVersion.from_layer_version_arn(self,"Layer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
-        )
 
-        schedule_creator = lmbda.Function.from_function_name(self, "schedule_creator", "schedule_creator")
 
+
+        # SSM parameters for emails
         sender = ssm.StringParameter.from_string_parameter_name(
             self, "SesSenderIdentityParam",
             string_parameter_name="/ses/parameter/email/sender"
@@ -55,11 +50,117 @@ class NotifyMyTurnFrontendStack(Stack):
             string_parameter_name="/ses/parameter/email/receiver"
         ).string_value
 
+        
+        ses_service = ses.EmailIdentity.from_email_identity_name(self, "ExistingEmailNotification", sender)
+        ses_receiver_service = ses.EmailIdentity.from_email_identity_name(self, "ExistingEmailReceiver", receiver)
+
+    
+
+        #powertool
+        powertool_layer = lmbda.LayerVersion.from_layer_version_arn(self, "Layer",
+            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
+        )
+
+       
+        notifier = lmbda.Function(self, 
+            "NotifierLambda",
+            function_name= "event_notifier",
+            runtime=lmbda.Runtime.PYTHON_3_12,
+            handler="event_notifier.lambda_handler", 
+            code=lmbda.Code.from_asset("notify_my_turn/assets"),
+            layers=[powertool_layer],
+            environment={
+                "sender_email": sender,
+                "receiver_email": receiver,
+                "TABLE_NAME": dynamo.table_name
+            }
+        )
+
+        
+        dynamo.grant_read_write_data(notifier)
+
+        notifier.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["dynamodb:Query"],
+                resources=[
+                    dynamo.table_arn,
+                    f"{dynamo.table_arn}/index/TaskSchedulerDb"
+                ]
+            )
+        )
+
+        
+        ses_service.grant_send_email(notifier)
+        ses_receiver_service.grant_send_email(notifier)
+
+        event_scheduler_role = iam.Role(self, "SchedulerInvocationRole",
+            assumed_by=iam.ServicePrincipal("scheduler.amazonaws.com"),
+            inline_policies={
+                "InvokeLambdaPolicy": iam.PolicyDocument(statements=[
+                    iam.PolicyStatement(
+                        actions=["lambda:InvokeFunction"],
+                        resources=[notifier.function_arn]
+                    )
+                ])
+            }
+        )
+       
+
+        schedule_creator = lmbda.Function(self,
+            "ScheduleCreatorLambda",
+            function_name= "event_scheduler",
+            runtime=lmbda.Runtime.PYTHON_3_12,
+            handler="event_scheduler.lambda_handler",  
+            code=lmbda.Code.from_asset("notify_my_turn/assets"),
+            layers=[powertool_layer],
+            environment={
+                "NOTIFIER_LAMBDA_ARN": notifier.function_arn,
+                "TABLE_NAME": dynamo.table_name,
+                "sender_email": sender,
+                "receiver_email": receiver,
+                "SCHEDULER_ROLE_ARN": event_scheduler_role.role_arn
+
+            }
+        )
+
+        schedule_creator.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "scheduler:CreateSchedule",
+                    "scheduler:DeleteSchedule",
+                    "scheduler:GetSchedule",
+                    "scheduler:UpdateSchedule"
+                ],
+                resources=[
+                    f"arn:aws:scheduler:{self.region}:{self.account}:schedule/default/*"
+                ]
+            )
+        )
+        
+        schedule_creator.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["iam:PassRole"],
+                resources=[event_scheduler_role.role_arn]
+            )
+        )
+
+        notifier.grant_invoke(schedule_creator)
+        dynamo.grant_read_data(schedule_creator)
+
+        notifier.add_permission(
+            "AllowSchedulerInvoke",
+            principal=iam.ServicePrincipal("scheduler.amazonaws.com"),
+            action="lambda:InvokeFunction",
+            source_account=self.account,
+            source_arn=f"arn:aws:scheduler:{self.region}:{self.account}:schedule/default/*"
+        )
+
 
         task_handler = lmbda.Function(
             self, "TaskHandler",
+            function_name="intake_appointment_invoke_scheduler",
             runtime=lmbda.Runtime.PYTHON_3_12,
-            handler="appointment_store_ddb.lambda_handler",
+            handler="intake_appointment_invoke_scheduler.lambda_handler",
             layers = [powertool_layer],
             code=lmbda.Code.from_asset("notify_my_turn/assets"),
             environment={
@@ -81,6 +182,7 @@ class NotifyMyTurnFrontendStack(Stack):
         schedule_creator.grant_invoke(task_handler)
         dynamo.grant_read_write_data(task_handler)
 
+        #Api
         api = apigw.RestApi(
             self, "TaskSchedulerApi",
             rest_api_name="MyTaskScheduler",

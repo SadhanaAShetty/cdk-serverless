@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 
 from notify_my_turn.notify_frontend import NotifyMyTurnFrontendStack
-from notify_my_turn.notify_backend import NotifyMyTurnBackendStack
+# from notify_my_turn.notify_backend import NotifyMyTurnBackendStack
 
 
 load_dotenv()
@@ -18,13 +18,13 @@ app = cdk.App()
 frontend_stack = NotifyMyTurnFrontendStack(app, "NotifyMyTurnFrontendStack", 
                                             env =cdk.Environment(account = account, region = region),
 )
-backend_stack = NotifyMyTurnBackendStack(app, "NotifyMyTurnBackendStack", 
-                                            env =cdk.Environment(account = account, region = region),
+# backend_stack = NotifyMyTurnBackendStack(app, "NotifyMyTurnBackendStack", 
+#                                             env =cdk.Environment(account = account, region = region),
 
-)
+# )
 
 
-backend_stack.add_dependency(frontend_stack)
+# backend_stack.add_dependency(frontend_stack)
 app.synth()
 
 
