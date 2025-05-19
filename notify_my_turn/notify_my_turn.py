@@ -14,11 +14,11 @@ from aws_cdk import (
 from constructs import Construct
 
 
-class NotifyMyTurnFrontendStack(Stack):
+class NotifyMyTurnStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
-        #ddbTable
+        #appointment_table
         dynamo = ddb.TableV2(
             self, "TaskSchedulerDb",
             table_name="dynamo",
@@ -36,7 +36,15 @@ class NotifyMyTurnFrontendStack(Stack):
             ),
             removal_policy=RemovalPolicy.DESTROY
         ) 
-
+        #gsi
+        dynamo.add_global_secondary_index(
+            index_name="time_stamp_index",
+            partition_key=ddb.Attribute(
+                name="time_stamp",
+                type=ddb.AttributeType.STRING
+            )
+        )
+        #user_tabel
         member_table = ddb.TableV2(
                 self, "Members",
                 table_name = "member_table",
@@ -68,7 +76,7 @@ class NotifyMyTurnFrontendStack(Stack):
             string_parameter_name="/ses/parameter/email/receiver"
         ).string_value
 
-        
+        #ses
         ses_service = ses.EmailIdentity.from_email_identity_name(self, "ExistingEmailNotification", sender)
         ses_receiver_service = ses.EmailIdentity.from_email_identity_name(self, "ExistingEmailReceiver", receiver)
 
@@ -79,7 +87,7 @@ class NotifyMyTurnFrontendStack(Stack):
             "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
         )
 
-       
+       #event_notifier_lambda
         notifier = lmbda.Function(self, 
             "NotifierLambda",
             function_name= "event_notifier",
@@ -105,7 +113,7 @@ class NotifyMyTurnFrontendStack(Stack):
                 resources=[
                     dynamo.table_arn,
                     member_table.table_arn,
-                    f"{dynamo.table_arn}/index/TaskSchedulerDb",
+                    f"{dynamo.table_arn}/index/*",
                     f"{member_table.table_arn}/index/*"
                 ]
             )
@@ -127,7 +135,7 @@ class NotifyMyTurnFrontendStack(Stack):
             }
         )
        
-
+        #event_scheduler_lambda
         schedule_creator = lmbda.Function(self,
             "ScheduleCreatorLambda",
             function_name= "event_scheduler",
@@ -179,7 +187,7 @@ class NotifyMyTurnFrontendStack(Stack):
             source_arn=f"arn:aws:scheduler:{self.region}:{self.account}:schedule/default/*"
         )
 
-
+        #intake_appointment_lambda
         task_handler = lmbda.Function(
             self, "TaskHandler",
             function_name="intake_appointment_invoke_scheduler",
@@ -189,8 +197,21 @@ class NotifyMyTurnFrontendStack(Stack):
             code=lmbda.Code.from_asset("notify_my_turn/assets"),
             environment={
                 "TABLE_NAME": dynamo.table_name,
-                "USER_TABLE_NAME" :member_table.table_name,
                 "SCHEDULE_CREATOR_LAMBDA_ARN": schedule_creator.function_arn,
+                "sender_email": sender,
+                "receiver_email": receiver
+            }
+        )
+        #create_user_lambda
+        create_user = lmbda.Function(
+            self, "CreateUser",
+            function_name="create_user",
+            runtime=lmbda.Runtime.PYTHON_3_12,
+            handler="create_user.lambda_handler",
+            layers = [powertool_layer],
+            code=lmbda.Code.from_asset("notify_my_turn/assets"),
+            environment={
+                "USER_TABLE_NAME" :member_table.table_name,
                 "sender_email": sender,
                 "receiver_email": receiver
             }
@@ -203,10 +224,12 @@ class NotifyMyTurnFrontendStack(Stack):
                 resources=[schedule_creator.function_arn]  
             )
         )
+        member_table.grant_read_write_data(create_user)
+
 
         schedule_creator.grant_invoke(task_handler)
         dynamo.grant_read_write_data(task_handler)
-        member_table.grant_read_write_data(task_handler)
+       
 
         #Api
         api = apigw.RestApi(
@@ -225,7 +248,7 @@ class NotifyMyTurnFrontendStack(Stack):
         user_resource = api.root.add_resource("create_user")
         post_method_2 = user_resource.add_method(
             "POST",
-            apigw.LambdaIntegration(task_handler),
+            apigw.LambdaIntegration(create_user),
             api_key_required=True
         )
         

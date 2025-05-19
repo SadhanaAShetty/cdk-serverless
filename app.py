@@ -5,8 +5,8 @@ import aws_cdk as cdk
 from dotenv import load_dotenv
 
 
-from notify_my_turn.notify_frontend import NotifyMyTurnFrontendStack
-# from notify_my_turn.notify_backend import NotifyMyTurnBackendStack
+from notify_my_turn.notify_my_turn import NotifyMyTurnStack
+
 
 
 load_dotenv()
@@ -15,13 +15,10 @@ region = os.getenv("AWS_REGION")
 
 app = cdk.App()
 
-frontend_stack = NotifyMyTurnFrontendStack(app, "NotifyMyTurnFrontendStack", 
+stack = NotifyMyTurnStack(app, "NotifyMyTurnStack", 
                                             env =cdk.Environment(account = account, region = region),
 )
-# backend_stack = NotifyMyTurnBackendStack(app, "NotifyMyTurnBackendStack", 
-#                                             env =cdk.Environment(account = account, region = region),
 
-# )
 
 
 # backend_stack.add_dependency(frontend_stack)
