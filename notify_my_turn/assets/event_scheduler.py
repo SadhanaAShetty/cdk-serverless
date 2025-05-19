@@ -11,6 +11,8 @@ logger =  Logger()
 
 
 scheduler = boto3.client("scheduler")
+dynamodb = boto3.resource('dynamodb')
+user_table =dynamodb.Table('member_table')
 notifier_arn = os.environ["NOTIFIER_LAMBDA_ARN"]
 scheduler_role_arn = os.environ["SCHEDULER_ROLE_ARN"]
 sender_email = os.environ['sender_email']   

@@ -11,6 +11,7 @@ from aws_lambda_powertools.utilities.typing import LambdaContext
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('dynamo')
+user_table =dynamodb.Table('member_table')
 scheduler_lambda_arn = os.environ["SCHEDULE_CREATOR_LAMBDA_ARN"]
 sender_email = os.environ['sender_email']   
 receiver_email = os.environ['receiver_email']
@@ -22,12 +23,16 @@ app = APIGatewayRestResolver()
 
 
 @tracer.capture_method
-@app.post("/agenda")
-def order_call():
-    logger.info("Inside agenda handler")
+@app.post("/create_user")
+def new_user():
+    logger.info("Inside create user handler")
     data: dict = app.current_event.json_body
 
-    required_keys = ["user_name", "time_stamp", "location"]
+    required_keys = [
+        "bsn", "f_name", "l_name", "dob", "email", "phone",
+        "house_number", "city", "street", "pincode", "subscribe"
+    ]
+
     for key in required_keys:
         if key not in data:
             return Response(
@@ -36,18 +41,41 @@ def order_call():
                 body=json.dumps({"error": f"Missing key: {key}"})
             )
 
-    
-    appointment_id = ''.join(random.choices(string.digits, k=8))
+    if not isinstance(data["subscribe"], bool):
+        return Response(
+            status_code=400,
+            content_type="application/json",
+            body=json.dumps({"error": "subscribe must be a boolean true or false"})
+        )
+
+   
+    try:
+        response = user_table.get_item(Key={"bsn": data["bsn"]})
+        if "Item" in response:
+            return Response(
+                status_code=409,
+                content_type="application/json",
+                body=json.dumps({"error": "User with this BSN already exists"})
+            )
+    except Exception as e:
+        logger.error(f"Error checking for existing user: {str(e)}")
 
     item_to_store = {
-        "appointment_id": appointment_id,  
-        "user_name": data["user_name"],
-        "time_stamp": data["time_stamp"],
-        "location": data["location"]
+        "bsn": data["bsn"],
+        "f_name": data["f_name"],
+        "l_name": data["l_name"],
+        "dob": data["dob"],
+        "email": data["email"],
+        "phone": data["phone"],
+        "house_number": data["house_number"],
+        "city": data["city"],
+        "street": data["street"],
+        "pincode": data["pincode"],
+        "subscribe": data["subscribe"]
     }
 
     try:
-        table.put_item(Item=item_to_store)
+        user_table.put_item(Item=item_to_store)
         logger.info(f"Item successfully inserted: {item_to_store}")
     except Exception as e:
         logger.error(f"Error inserting item into DynamoDB: {str(e)}")
@@ -58,22 +86,82 @@ def order_call():
         )
 
     confirmation = {
-        "message": "Your appointment has been scheduled and will be notified 24 hours and 3 hours in advance.",
-        "your_appointment_id" : appointment_id,
-        "user_name": data["user_name"],
-        "time_stamp": data["time_stamp"],
-        "location": data["location"],
+        "message": "Your User account is successfully created.Now you can directly enter your BSN and book your appointment. We look forward to meeting you :)"
     }
 
-    lambda_client.invoke(
-        FunctionName=scheduler_lambda_arn,
-        InvocationType='Event',  
-        Payload=json.dumps({
-            "appointment_id": appointment_id,
-            "time_stamp": data["time_stamp"],
-            "email": receiver_email 
-        }).encode('utf-8')
+    return Response(
+        status_code=200,
+        content_type="application/json",
+        body=json.dumps(confirmation)
     )
+
+
+@tracer.capture_method
+@app.post("/create_appointment")
+def order_call():
+    logger.info("Inside create_appointment handler")
+    data: dict = app.current_event.json_body
+
+    required_keys = ["bsn", "time_stamp","location"]
+    for key in required_keys:
+        if key not in data:
+            return Response(
+                status_code=400,
+                content_type="application/json",
+                body=json.dumps({"error": f"Missing key: {key}"})
+            )
+
+   
+    try:
+        datetime.fromisoformat(data["time_stamp"].replace("Z", "+00:00"))  
+    except ValueError:
+        return Response(
+            status_code=400,
+            content_type="application/json",
+            body=json.dumps({"error": "Invalid timestamp format. Use ISO 8601."})
+        )
+
+    appointment_id = ''.join(random.choices(string.digits, k=8))
+    item_to_store = {
+        "appointment_id": appointment_id,
+        "bsn": data["bsn"],
+        "time_stamp": data["time_stamp"],
+        "location": data["location"]
+    }
+
+    try:
+        table.put_item(Item=item_to_store)
+        logger.info(f"Appointment successfully inserted: {item_to_store}")
+    except Exception as e:
+        logger.error(f"Error inserting appointment: {str(e)}")
+        return Response(
+            status_code=500,
+            content_type="application/json",
+            body=json.dumps({"error": "Internal server error"})
+        )
+
+    
+    user_email = data.get("email", receiver_email)
+
+    
+    lambda_client.invoke(
+            FunctionName=scheduler_lambda_arn,
+            InvocationType='Event',
+            Payload=json.dumps({
+                "appointment_id": appointment_id,
+                "time_stamp": data["time_stamp"],
+                "email": user_email
+            }).encode('utf-8')
+    )
+   
+
+    confirmation = {
+        "message": "Your appointment has been scheduled and you will be notified 24 hours and 3 hours in advance.",
+        "appointment_id": appointment_id,
+        "bsn": data["bsn"],
+        "time_stamp": data["time_stamp"],
+        "location": data["location"]
+    }
 
     return Response(
         status_code=200,

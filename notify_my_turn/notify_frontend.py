@@ -18,7 +18,7 @@ class NotifyMyTurnFrontendStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
-
+        #ddbTable
         dynamo = ddb.TableV2(
             self, "TaskSchedulerDb",
             table_name="dynamo",
@@ -36,6 +36,24 @@ class NotifyMyTurnFrontendStack(Stack):
             ),
             removal_policy=RemovalPolicy.DESTROY
         ) 
+
+        member_table = ddb.TableV2(
+                self, "Members",
+                table_name = "member_table",
+                partition_key = ddb.Attribute(
+                    name = "bsn",
+                    type =ddb.AttributeType.STRING
+                    ),
+                    sort_key =ddb.Attribute(
+                            name = "f_name",
+                            type = ddb.AttributeType.STRING
+                    ),
+                    billing=ddb.Billing.provisioned(
+                        read_capacity=ddb.Capacity.fixed(2),
+                        write_capacity=ddb.Capacity.autoscaled(max_capacity=3)
+                    ),
+                    removal_policy=RemovalPolicy.DESTROY
+        )
 
 
 
@@ -72,19 +90,23 @@ class NotifyMyTurnFrontendStack(Stack):
             environment={
                 "sender_email": sender,
                 "receiver_email": receiver,
-                "TABLE_NAME": dynamo.table_name
+                "TABLE_NAME": dynamo.table_name,
+                "USER_TABLE_NAME" :member_table.table_name
             }
         )
 
         
         dynamo.grant_read_write_data(notifier)
+        member_table.grant_read_write_data(notifier)
 
         notifier.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query"],
                 resources=[
                     dynamo.table_arn,
-                    f"{dynamo.table_arn}/index/TaskSchedulerDb"
+                    member_table.table_arn,
+                    f"{dynamo.table_arn}/index/TaskSchedulerDb",
+                    f"{member_table.table_arn}/index/*"
                 ]
             )
         )
@@ -116,6 +138,7 @@ class NotifyMyTurnFrontendStack(Stack):
             environment={
                 "NOTIFIER_LAMBDA_ARN": notifier.function_arn,
                 "TABLE_NAME": dynamo.table_name,
+                "USER_TABLE_NAME" :member_table.table_name,
                 "sender_email": sender,
                 "receiver_email": receiver,
                 "SCHEDULER_ROLE_ARN": event_scheduler_role.role_arn
@@ -146,6 +169,7 @@ class NotifyMyTurnFrontendStack(Stack):
 
         notifier.grant_invoke(schedule_creator)
         dynamo.grant_read_data(schedule_creator)
+        member_table.grant_read_write_data(schedule_creator)
 
         notifier.add_permission(
             "AllowSchedulerInvoke",
@@ -165,6 +189,7 @@ class NotifyMyTurnFrontendStack(Stack):
             code=lmbda.Code.from_asset("notify_my_turn/assets"),
             environment={
                 "TABLE_NAME": dynamo.table_name,
+                "USER_TABLE_NAME" :member_table.table_name,
                 "SCHEDULE_CREATOR_LAMBDA_ARN": schedule_creator.function_arn,
                 "sender_email": sender,
                 "receiver_email": receiver
@@ -181,6 +206,7 @@ class NotifyMyTurnFrontendStack(Stack):
 
         schedule_creator.grant_invoke(task_handler)
         dynamo.grant_read_write_data(task_handler)
+        member_table.grant_read_write_data(task_handler)
 
         #Api
         api = apigw.RestApi(
@@ -189,8 +215,15 @@ class NotifyMyTurnFrontendStack(Stack):
             deploy=False
         )
 
-        task_resource = api.root.add_resource("agenda")
-        post_method = task_resource.add_method(
+        task_resource = api.root.add_resource("create_appointment")
+        post_method_1= task_resource.add_method(
+            "POST",
+            apigw.LambdaIntegration(task_handler),
+            api_key_required=True
+        )
+
+        user_resource = api.root.add_resource("create_user")
+        post_method_2 = user_resource.add_method(
             "POST",
             apigw.LambdaIntegration(task_handler),
             api_key_required=True
@@ -244,14 +277,33 @@ class NotifyMyTurnFrontendStack(Stack):
             stage=stage,
             throttle=[
                 apigw.ThrottlingPerMethod(
-                    method=post_method,
+                    method=post_method_1,
                     throttle=apigw.ThrottleSettings(
                         rate_limit=10,
                         burst_limit=2
                     )
+                ),
+                apigw.ThrottlingPerMethod(
+                    method=post_method_2,
+                    throttle=apigw.ThrottleSettings(
+                        rate_limit=5,
+                        burst_limit=1
+                    )
                 )
             ]
         )
+
+
+
+
+
+        
+
+
+
+        
+
+
 
         
         
