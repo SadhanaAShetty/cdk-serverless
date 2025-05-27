@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 # from order_processing.order_processing_frontend_stack import OrderProcessingFrontendStack
 # from order_processing.order_processing_backend_stack import OrderProcessingBackendStack
 # from notify_my_turn.notify_my_turn import NotifyMyTurnStack
-from loan_processing.loan_processing_stack import LoanProcessingStack
+# from loan_processing.loan_processing_stack import LoanProcessingStack
+from loan_processor2.loan_processing_stack import LoanProcessingStack
 
 
 load_dotenv()
