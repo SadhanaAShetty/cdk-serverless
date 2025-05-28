@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - feat/loan_processor2
+permissions:
+  id-token: write # This is required for requesting the JWT
 
 jobs:
   deploy:
@@ -44,8 +46,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.CICD_DEPLOY_ROLE }}
           aws-region: eu-west-1
 
       - name: CDK Synth
