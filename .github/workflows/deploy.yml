@@ -3,7 +3,7 @@ name: Deploy Loan Processor CDK Stack
 on:
   push:
     branches:
-      - main
+      - feat/loan_processor2
 
 jobs:
   deploy:
