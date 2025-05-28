@@ -13,7 +13,7 @@ table_name = os.environ["TABLE_NAME"]
 sns_topic_arn = os.environ["APPROVAL_TOPIC_ARN"]
 
 table = dynamodb.Table(table_name)
-
+ 
 tracer = Tracer()
 logger = Logger()
 app = APIGatewayRestResolver()
@@ -47,7 +47,7 @@ def approve_handler():
     body = (
         "Hello,\n\n"
         "Your loan application has been approved.\n"
-        "The amount will be processed within 5-6 business days."
+        "The amount will be processed within 5-6 business days to your bank."
     )
     send_sns_notification(subject, body)
     logger.info(f"Sending task success for token: {task_token}")
