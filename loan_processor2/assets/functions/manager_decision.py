@@ -10,7 +10,7 @@ sns = boto3.client("sns")
 client = boto3.client("stepfunctions")
 
 table_name = os.environ["TABLE_NAME"]
-sns_topic_arn = os.environ["SNS_TOPIC_ARN"]
+sns_topic_arn = os.environ["APPROVAL_TOPIC_ARN"]
 
 table = dynamodb.Table(table_name)
 

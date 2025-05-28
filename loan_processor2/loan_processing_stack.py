@@ -60,31 +60,10 @@ class LoanProcessingStack(Stack):
         approved = sfn.Succeed(self, "Approved")
         declined = sfn.Fail(self, "Declined")
 
-
-        publish_task = tasks.SnsPublish(
-            self, "Publish Message And Wait For Callback",
-            topic=approval_topic,  
-            subject="Loan Application",
-            integration_pattern=sfn.IntegrationPattern.WAIT_FOR_TASK_TOKEN,
-            message_per_subscription_type=True,
-            message=sfn.TaskInput.from_object({
-                "Message": sfn.JsonPath.format(
-                    "Please review the loan application for {}\n"
-                    "Approve: {}?status=approve&taskToken={}\n"
-                    "Decline: {}?status=decline&taskToken={}",
-                    sfn.JsonPath.string_at("$.expenseReportId"),
-                    "<API Gateway End point url>",
-                    sfn.JsonPath.base64_encode(sfn.JsonPath.task_token),
-                    "<API Gateway End point url>",
-                    sfn.JsonPath.base64_encode(sfn.JsonPath.task_token)
-                ),
-                "TopicArn": approval_topic.topic_arn
-            })
-        )
-
+        
         approval_choice = sfn.Choice(self, "Approval/Decline")
-        approval_choice.when(sfn.Condition.string_equals("$.Status", "Approved"), approved)
-        approval_choice.when(sfn.Condition.string_equals("$.Status", "Declined"), declined)
+        approval_choice.when(sfn.Condition.string_equals("$.status", "approved"), approved)
+        approval_choice.when(sfn.Condition.string_equals("$.status", "denied"), declined)
 
         powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
             self, "PowertoolsLayer",
@@ -126,7 +105,7 @@ class LoanProcessingStack(Stack):
             output_path="$.Payload"
         )
         loan_table.grant_read_write_data(auto_approve_lambda)
-        approval_topic.grant_publish(auto_approve_lambda)
+        
 
         request_approval_lambda = lmbda.Function(
             self, "RequestApprovalHandler",
@@ -168,12 +147,29 @@ class LoanProcessingStack(Stack):
                 "APPROVAL_TOPIC_ARN": approval_topic.topic_arn
             }
         )
+        manager_decision_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["states:SendTaskSuccess", "states:SendTaskFailure"],
+                resources=["*"]
+            )
+        )
         loan_table.grant_read_write_data(manager_decision_lambda)
         approval_topic.grant_publish(manager_decision_lambda)
 
+        request_approval = tasks.LambdaInvoke(self, "Request Manager Approval",
+            lambda_function=request_approval_lambda,
+            integration_pattern=sfn.IntegrationPattern.WAIT_FOR_TASK_TOKEN,
+            payload=sfn.TaskInput.from_object({
+                "taskToken": sfn.JsonPath.task_token,
+                "input": sfn.JsonPath.entire_payload
+            }),
+            timeout=Duration.hours(1)
+        )
+
+
         loan_check = sfn.Choice(self, "Loan >= $3000")
         loan_check.when(sfn.Condition.number_less_than("$.amount", 3000), auto_approve_task)
-        loan_check.otherwise(publish_task.next(approval_choice))
+        loan_check.otherwise(request_approval.next(approval_choice))
 
         definition = loan_check
 
