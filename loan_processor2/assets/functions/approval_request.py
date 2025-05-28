@@ -13,7 +13,7 @@ dynamodb = boto3.resource('dynamodb')
 lambda_client = boto3.client("lambda")
 ssm = boto3.client("ssm")
 
-sns_topic_arn = os.environ["SNS_TOPIC_ARN"]
+sns_topic_arn = os.environ["APPROVAL_TOPIC_ARN"]
 param_name = os.environ["API_BASE_URL_PARAM"]
 api_base_url = ssm.get_parameter(Name=param_name)["Parameter"]["Value"]
 
@@ -23,14 +23,21 @@ app = APIGatewayRestResolver()
 
 @tracer.capture_method
 def send_sns_notification(subject: str, message: str):
-    sns.publish(
-        TopicArn=sns_topic_arn,
-        Subject=subject,
-        Message=message
-    )
+    try:
+        sns.publish(
+            TopicArn=sns_topic_arn,
+            Subject=subject,
+            Message=message
+        )
+        logger.info("SNS notification sent successfully")
+    except Exception as e:
+        logger.error(f"Failed to send SNS notification: {e}")
+        raise  
 
 @tracer.capture_method
 def handle_event(event: dict, context: LambdaContext):
+    logger.info(f"Received event: {json.dumps(event)}")  
+
     task_token = event.get("taskToken")
     input_data = event.get("input", {})
 
@@ -39,6 +46,7 @@ def handle_event(event: dict, context: LambdaContext):
     name = input_data.get("applicant")
 
     if not (task_token and appointment_id):
+        logger.error("Missing required parameters: taskToken or appointment_id")
         return {"statusCode": 400, "body": "Missing required parameters"}
 
     approve_params = urlencode({
@@ -67,6 +75,7 @@ def handle_event(event: dict, context: LambdaContext):
         f"Deny: {deny_url}\n"
     )
 
+    logger.info(f"Sending SNS notification with subject: {subject}")
     send_sns_notification(subject, body)
 
     return {
