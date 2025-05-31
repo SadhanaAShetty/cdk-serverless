@@ -4,28 +4,24 @@ import os
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
-ses = boto3.client('ses')
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
 
-sender_email = os.environ['sender_email']
-receiver_email = os.environ['receiver_email']
+sns = boto3.client('sns')
+sns_topic_arn = os.environ["APPROVAL_TOPIC_ARN"]
 
 tracer = Tracer()
 logger = Logger()
 
 
 @tracer.capture_method
-def send_email(to_email: str, subject: str, body: str):
-    ses.send_email(
-        Source=sender_email,
-        Destination={'ToAddresses': [to_email]},
-        Message={
-            'Subject': {'Data': subject},
-            'Body': {'Text': {'Data': body}}
-        }
+def publish_to_sns(subject: str, message: str):
+    sns.publish(
+        TopicArn=sns_topic_arn,
+        Subject=subject,
+        Message=message
     )
-    logger.info("Email sent")
+    logger.info("SNS message published")
 
 
 @tracer.capture_method
@@ -38,18 +34,18 @@ def handle_event(event: dict, context: LambdaContext):
             Key={"appointment_id": appointment_id},
             UpdateExpression="SET #s = :val",
             ExpressionAttributeNames={"#s": "status"},
-            ExpressionAttributeValues={":val": "Auto-approved"}
+            ExpressionAttributeValues={":val": "approved"}
         )
         subject = "Loan Application Approved"
         body = (
             "Hi,\n\n"
-            "Your loan application has been approved. The amount will be sent within 5-6 business days.\n\n"
+            "Your loan application has been approved. You will be notified about the process. The amount will be sent within 5-6 business days.\n\n"
             "Thanks."
         )
-        send_email(receiver_email, subject, body)
-        return {"status": "approved", "email_sent": True}
+        publish_to_sns(subject, body)
+        return {"status": "approved", "notification_sent": True}
 
-    return {"status": "requires manual review", "email_sent": False}
+    return {"status": "requires manual review", "notification_sent": False}
 
 
 @tracer.capture_lambda_handler
