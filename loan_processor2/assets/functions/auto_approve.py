@@ -39,7 +39,7 @@ def handle_event(event: dict, context: LambdaContext):
         subject = "Loan Application Approved"
         body = (
             "Hi,\n\n"
-            "Your loan application has been approved. The amount will be sent within 5-6 business days.\n\n"
+            "Your loan application has been approved. You will be notified about the process. The amount will be sent within 5-6 business days.\n\n"
             "Thanks."
         )
         publish_to_sns(subject, body)
