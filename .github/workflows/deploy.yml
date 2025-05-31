@@ -9,56 +9,57 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: codebuild-loanprocessor-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+        - run: echo "Hello World!"
+      # - name: Checkout code
+      #   uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Cache npm global packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-aws-cdk
-          restore-keys: |
-            ${{ runner.os }}-npm-
+    #   - name: Set up Node.js
+    #     uses: actions/setup-node@v4
+    #     with:
+    #       node-version: 20
+    #   - name: Cache npm global packages
+    #     uses: actions/cache@v4
+    #     with:
+    #       path: ~/.npm
+    #       key: ${{ runner.os }}-npm-aws-cdk
+    #       restore-keys: |
+    #         ${{ runner.os }}-npm-
 
-      - name: Install AWS CDK CLI
-        run: npm install -g aws-cdk
+    #   - name: Install AWS CDK CLI
+    #     run: npm install -g aws-cdk
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.11
+    #   - name: Set up Python
+    #     uses: actions/setup-python@v5
+    #     with:
+    #       python-version: 3.11
     
 
-      - name: Cache pip dependencies
-        id: pip-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+    #   - name: Cache pip dependencies
+    #     id: pip-cache
+    #     uses: actions/cache@v4
+    #     with:
+    #       path: ~/.cache/pip
+    #       key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+    #       restore-keys: |
+    #         ${{ runner.os }}-pip-
 
-      - name: Install Python dependencies
-        # if: steps.pip-cache.outputs.cache-hit != 'true'
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+    #   - name: Install Python dependencies
+    #     # if: steps.pip-cache.outputs.cache-hit != 'true'
+    #     run: |
+    #       python -m pip install --upgrade pip
+    #       pip install -r requirements.txt
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.CICD_DEPLOY_ROLE }}
-          aws-region: eu-west-1
+    #   - name: Configure AWS credentials
+    #     uses: aws-actions/configure-aws-credentials@v4
+    #     with:
+    #       role-to-assume: ${{ secrets.CICD_DEPLOY_ROLE }}
+    #       aws-region: eu-west-1
 
-      - name: CDK Synth
-        run: cdk synth
+    #   - name: CDK Synth
+    #     run: cdk synth
 
-      # - name: CDK Deploy
-      #   run: cdk deploy --require-approval never
+    #   # - name: CDK Deploy
+    #   #   run: cdk deploy --require-approval never
