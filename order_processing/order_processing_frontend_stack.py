@@ -6,29 +6,24 @@ from aws_cdk import (
     aws_apigateway as apigw,
     aws_logs as logs,
     aws_sns as sns,
-    aws_ssm as ssm
+    aws_ssm as ssm,
 )
 from constructs import Construct
 
-class OrderProcessingFrontendStack(Stack):
 
+class OrderProcessingFrontendStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # DynamoDB 
+        # DynamoDB
         dynamo = ddb.Table(
-            self, "OrderTable",
+            self,
+            "OrderTable",
             table_name="dynamo",
-            partition_key=ddb.Attribute(
-                name="order_id",
-                type=ddb.AttributeType.STRING
-            ),
-            sort_key=ddb.Attribute(
-                name="customer_id",
-                type=ddb.AttributeType.STRING
-            ),
+            partition_key=ddb.Attribute(name="order_id", type=ddb.AttributeType.STRING),
+            sort_key=ddb.Attribute(name="customer_id", type=ddb.AttributeType.STRING),
             billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY
+            removal_policy=RemovalPolicy.DESTROY,
         )
 
         # SNS Topic
@@ -36,13 +31,12 @@ class OrderProcessingFrontendStack(Stack):
 
         # Lambda Function
         order_processing = lmbda.Function(
-            self, "OrderProcessing",
+            self,
+            "OrderProcessing",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="order_processing.lambda_handler",
             code=lmbda.Code.from_asset("order_processing/assets/functions"),
-            environment={
-                "TOPIC_ARN": topic.topic_arn
-            }
+            environment={"TOPIC_ARN": topic.topic_arn},
         )
 
         # Grant permissions
@@ -51,29 +45,23 @@ class OrderProcessingFrontendStack(Stack):
 
         # API
         api = apigw.RestApi(
-            self, "OrderProcessingApi",
-            rest_api_name="OrderProcessingApi",
-            deploy=False
+            self, "OrderProcessingApi", rest_api_name="OrderProcessingApi", deploy=False
         )
 
         order_resource = api.root.add_resource("orders")
         post_method = order_resource.add_method(
-            "POST",
-            apigw.LambdaIntegration(order_processing),
-            api_key_required=True
+            "POST", apigw.LambdaIntegration(order_processing), api_key_required=True
         )
 
         # Logging
-        log_group = logs.LogGroup(
-            self, "DevLogs",
-            retention=logs.RetentionDays.ONE_DAY
-        )
+        log_group = logs.LogGroup(self, "DevLogs", retention=logs.RetentionDays.ONE_DAY)
 
         # Stage
         deployment = apigw.Deployment(self, "Deployment", api=api)
 
         stage = apigw.Stage(
-            self, "DevStage",
+            self,
+            "DevStage",
             deployment=deployment,
             stage_name="dev",
             access_log_destination=apigw.LogGroupLogDestination(log_group),
@@ -86,11 +74,10 @@ class OrderProcessingFrontendStack(Stack):
                 resource_path=True,
                 response_length=True,
                 status=True,
-                user=True
-            )
+                user=True,
+            ),
         )
 
-        
         api.deployment_stage = stage
 
         # API Key & Usage Plan
@@ -99,10 +86,7 @@ class OrderProcessingFrontendStack(Stack):
         plan = api.add_usage_plan(
             "UsagePlan",
             name="Easy",
-            throttle=apigw.ThrottleSettings(
-                rate_limit=10,
-                burst_limit=2
-            )
+            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2),
         )
 
         plan.add_api_key(key)
@@ -112,22 +96,18 @@ class OrderProcessingFrontendStack(Stack):
             throttle=[
                 apigw.ThrottlingPerMethod(
                     method=post_method,
-                    throttle=apigw.ThrottleSettings(
-                        rate_limit=10,
-                        burst_limit=2
-                    )
+                    throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2),
                 )
-            ]
+            ],
         )
 
         # SSM Parameter
         ssm.StringParameter(
-            self, "TopicArn",
+            self,
+            "TopicArn",
             allowed_pattern=".*",
             description="SNS Topic ARN",
             parameter_name="/orderprocessing/backend/sns",
             string_value=topic.topic_arn,
-            tier=ssm.ParameterTier.STANDARD
+            tier=ssm.ParameterTier.STANDARD,
         )
-
-       

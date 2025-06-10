@@ -7,7 +7,7 @@ from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
-    process_partial_response
+    process_partial_response,
 )
 
 processor = BatchProcessor(event_type=EventType.SQS)
@@ -19,6 +19,7 @@ ses = boto3.client("ses")
 QUEUE_URL = os.getenv("QUEUE_URL")
 sender_email = os.getenv("sender_email")
 receiver_email = os.getenv("receiver_email")
+
 
 @tracer.capture_method
 def record_handler(record: SQSRecord):
@@ -49,7 +50,10 @@ def record_handler(record: SQSRecord):
 
     logger.info("Email sent successfully", extra={"message_id": response["MessageId"]})
 
+
 @logger.inject_lambda_context
 @tracer.capture_lambda_handler
 def lambda_handler(event: dict, context: LambdaContext):
-    return process_partial_response(event=event, record_handler=record_handler, processor=processor, context=context)
+    return process_partial_response(
+        event=event, record_handler=record_handler, processor=processor, context=context
+    )
