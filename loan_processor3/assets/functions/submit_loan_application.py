@@ -8,18 +8,12 @@ from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 from aws_lambda_powertools.event_handler.api_gateway import Response
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
-<<<<<<< HEAD
-client = boto3.client('stepfunctions')
-dynamodb = boto3.resource('dynamodb')
-loan_table = dynamodb.Table(os.environ['TABLE_NAME'])  
+stepfunctions_client = boto3.client("stepfunctions")
+rds_data_client = boto3.client("rds-data")
 
-=======
-client = boto3.client("stepfunctions")
-dynamodb = boto3.resource("dynamodb")
-loan_table = dynamodb.Table(os.environ["TABLE_NAME"])
-sender_email = os.environ["sender_email"]
-receiver_email = os.environ["receiver_email"]
->>>>>>> b69f515 (initial code to use aurora as a database for loanprocessor project)
+db_name = os.environ["DATABASE_NAME"]
+cluster_arn = os.environ["DB_CLUSTER_ARN"]
+secret_arn = os.environ["DB_SECRET_ARN"]
 
 tracer = Tracer()
 logger = Logger()
@@ -50,28 +44,41 @@ def order_call():
                 body=json.dumps({"error": f"Missing key: {key}"}),
             )
 
-    appointment_id = uuid.uuid4().hex[:8]
+    id = uuid.uuid4().hex[:8]  
     amount = float(data["loan_request_amount"])
 
-    item = {
-        "appointment_id": appointment_id,
-        "bsn": data["bsn"],
-        "f_name": data["f_name"],
-        "l_name": data["l_name"],
-        "account_number": data["account_number"],
-        "loan_request_amount": data["loan_request_amount"],
-        "net_salary": data["net_salary"],
-        "loan_type": data["loan_type"],
-        "status": "pending",
-    }
+    sql = """
+    INSERT INTO loan_applications
+    (id, bsn, f_name, l_name, account_number, loan_request_amount, net_salary, loan_type, status)
+    VALUES
+    (:id, :bsn, :f_name, :l_name, :account_number, :loan_request_amount, :net_salary, :loan_type, :status)
+    """
 
-    loan_table.put_item(Item=item)
+    parameters = [
+        {"name": "id", "value": {"stringValue": id}},
+        {"name": "bsn", "value": {"stringValue": data["bsn"]}},
+        {"name": "f_name", "value": {"stringValue": data["f_name"]}},
+        {"name": "l_name", "value": {"stringValue": data["l_name"]}},
+        {"name": "account_number", "value": {"stringValue": data["account_number"]}},
+        {"name": "loan_request_amount","value": {"stringValue": data["loan_request_amount"]}},
+        {"name": "net_salary", "value": {"stringValue": data["net_salary"]}},
+        {"name": "loan_type", "value": {"stringValue": data["loan_type"]}},
+        {"name": "status", "value": {"stringValue": "pending"}},
+    ]
 
-    client.start_execution(
+    response = rds_data_client.execute_statement(
+        resourceArn=cluster_arn,
+        secretArn=secret_arn,
+        database=db_name,
+        sql=sql,
+        parameters=parameters,
+    )
+
+    stepfunctions_client.start_execution(
         stateMachineArn=os.environ["STATE_MACHINE_ARN"],
         input=json.dumps(
             {
-                "appointment_id": appointment_id,
+                "appointment_id": id,  
                 "amount": amount,
                 "applicant": f"{data['f_name']} {data['l_name']}",
             }
@@ -84,7 +91,7 @@ def order_call():
         body=json.dumps(
             {
                 "message": "We have received your loan application. You will be notified about the status once it is processed.",
-                "appointment_id": appointment_id,
+                "appointment_id": id,
             }
         ),
     )

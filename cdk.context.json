@@ -1,4 +1,12 @@
 {
+<<<<<<< HEAD
+=======
+  "availability-zones:account=913524907439:region=eu-west-1": [
+    "eu-west-1a",
+    "eu-west-1b",
+    "eu-west-1c"
+  ],
+>>>>>>> b69f515 (initial code to use aurora as a database for loanprocessor project)
   "vpc-provider:account=913524907439:filter.isDefault=true:region=eu-west-1:returnAsymmetricSubnets=true": {
     "vpcId": "vpc-01316c2dccd8e0124",
     "vpcCidrBlock": "172.31.0.0/16",

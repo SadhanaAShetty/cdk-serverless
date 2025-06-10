@@ -5,26 +5,44 @@ from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
-dynamodb = boto3.resource("dynamodb")
-ses = boto3.client("ses")
-client = boto3.client("stepfunctions")
-table_name = os.environ["TABLE_NAME"]
-sender_email = os.environ["sender_email"]
-receiver_email = os.environ["receiver_email"]
+rds_data_client = boto3.client("rds-data")
+sns = boto3.client("sns")
+stepfunctions_client = boto3.client("stepfunctions")
 
-table = dynamodb.Table(table_name)
+db_name = os.environ["DATABASE_NAME"]
+cluster_arn = os.environ["DB_CLUSTER_ARN"]
+secret_arn = os.environ["DB_SECRET_ARN"]
+sns_topic_arn = os.environ["APPROVAL_TOPIC_ARN"]
 
 tracer = Tracer()
 logger = Logger()
 app = APIGatewayRestResolver()
 
 
-def send_email(subject, body):
-    ses.send_email(
-        Source=sender_email,
-        Destination={"ToAddresses": [receiver_email]},
-        Message={"Subject": {"Data": subject}, "Body": {"Text": {"Data": body}}},
+def send_sns_notification(subject: str, message: str):
+    sns.publish(TopicArn=sns_topic_arn, Subject=subject, Message=message)
+
+
+def update_loan_status(appointment_id: str, status: str):
+    sql = """
+        UPDATE loan_applications
+        SET status = :status
+        WHERE id = :appointment_id
+    """
+    parameters = [
+        {"name": "status", "value": {"stringValue": status}},
+        {"name": "appointment_id", "value": {"stringValue": appointment_id}},
+    ]
+
+    response = rds_data_client.execute_statement(
+        resourceArn=cluster_arn,
+        secretArn=secret_arn,
+        database=db_name,
+        sql=sql,
+        parameters=parameters,
     )
+    logger.info(f"Loan status updated to {status} for id: {appointment_id}")
+    return response
 
 
 @tracer.capture_method
@@ -38,19 +56,18 @@ def approve_handler():
     if not task_token:
         return {"statusCode": 400, "body": "Missing task_token"}
 
-    table.update_item(
-        Key={"appointment_id": appointment_id},
-        UpdateExpression="SET #s = :val",
-        ExpressionAttributeNames={"#s": "status"},
-        ExpressionAttributeValues={":val": "approved"},
-    )
+    update_loan_status(appointment_id, "approved")
 
     subject = "Loan Approved"
-    body = "Hello,\n\nYour loan application has been approved.\nThe amount will be processed within 5-6 business days."
-    send_email(subject, body)
+    body = (
+        "Hello,\n\n"
+        "Your loan application has been approved.\n"
+        "The amount will be processed within 5-6 business days to your bank."
+    )
+    send_sns_notification(subject, body)
     logger.info(f"Sending task success for token: {task_token}")
 
-    client.send_task_success(
+    stepfunctions_client.send_task_success(
         taskToken=task_token, output=json.dumps({"status": "approved"})
     )
 
@@ -62,23 +79,24 @@ def approve_handler():
 def deny_handler():
     appointment_id = app.current_event.get_query_string_value("appointment_id")
     task_token = app.current_event.get_query_string_value("task_token")
+
     if not appointment_id:
         return {"error": "Missing appointment_id"}
     if not task_token:
         return {"statusCode": 400, "body": "Missing task_token"}
 
-    table.update_item(
-        Key={"appointment_id": appointment_id},
-        UpdateExpression="SET #s = :val",
-        ExpressionAttributeNames={"#s": "status"},
-        ExpressionAttributeValues={":val": "denied"},
-    )
+    update_loan_status(appointment_id, "denied")
 
     subject = "Loan Denied"
-    body = "Hello,\n\nUnfortunately, your loan application has been denied.\nPlease contact our support staff for more details."
-    send_email(subject, body)
+    body = (
+        "Hello,\n\n"
+        "Unfortunately, your loan application has been denied.\n"
+        "Please contact our support staff for more details."
+    )
+    send_sns_notification(subject, body)
     logger.info(f"Sending task success for token: {task_token}")
-    client.send_task_success(
+
+    stepfunctions_client.send_task_success(
         taskToken=task_token, output=json.dumps({"status": "denied"})
     )
 
