@@ -1,0 +1,63 @@
+name: Deploy Loan Processor CDK Stack
+
+on:
+  push:
+    branches:
+      - feat/image_processing
+permissions:
+  id-token: write 
+
+jobs:
+  deploy:
+    runs-on: codebuild-loanprocessor-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Cache npm global packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-aws-cdk
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install AWS CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+    
+
+      - name: Cache pip dependencies
+        id: pip-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CICD_DEPLOY_ROLE }}
+          aws-region: eu-west-1
+
+      - name: CDK Synth
+        run: cdk synth
+
+      - name: CDK Deployment
+        run: cdk deploy --require-approval never

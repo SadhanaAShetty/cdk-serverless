@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 # from order_processing.order_processing_frontend_stack import OrderProcessingFrontendStack
 # from order_processing.order_processing_backend_stack import OrderProcessingBackendStack
 # from notify_my_turn.notify_my_turn import NotifyMyTurnStack
-from loan_processing.loan_processing_stack import LoanProcessingStack
+# from loan_processor2.loan_processing_stack import LoanProcessingStack
+# from loan_processor3.loan_processing_stack import LoanProcessingStack
+from image_processing.image_processing_stack import ImageProcessingStack
 
 
 load_dotenv()
@@ -30,10 +32,13 @@ app = cdk.App()
 # )
 
 #loan Processing
-stack = LoanProcessingStack(app, "LoanProcessingStack",
-        env=cdk.Environment(account=account, region=region),
-            )
+# stack = LoanProcessingStack(app, "LoanProcessingStack",
+#         env=cdk.Environment(account=account, region=region),
+#             )
 
+stack = ImageProcessingStack(app, "ImageProcessingStack",
+                             env =cdk.Environment(account =account, region = region),
+                             )
 app.synth()
 
 
