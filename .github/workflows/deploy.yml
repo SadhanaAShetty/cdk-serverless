@@ -64,7 +64,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.CICD_DEPLOY_ROLE }}
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          aws-region: eu-west-1
+          AWS_REGION: eu-west-1
 
       - name: CDK Synth
         run: cdk synth
