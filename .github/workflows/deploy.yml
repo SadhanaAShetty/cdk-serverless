@@ -18,7 +18,7 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u sadhanashetty --password-stdin
+          echo "${{ secrets.DOCKER_HUB_SECRETS }}" | docker login -u sadhanashetty --password-stdin
           docker build -f ./image_processing/Dockerfile ./image_processing -t sadhanashetty/image-processor:latest
           docker push sadhanashetty/image-processor:latest
 
