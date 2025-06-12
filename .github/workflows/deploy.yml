@@ -11,6 +11,9 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest  
+    env:  
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_REGION: eu-west-1
 
     steps:
       - name: Checkout code
@@ -21,8 +24,6 @@ jobs:
           echo "${{ secrets.DOCKER_HUB_SECRETS }}" | docker login -u sadhanashetty --password-stdin
           docker build -f ./image_processing/Dockerfile ./image_processing -t sadhanashetty/image-processor:latest
           docker push sadhanashetty/image-processor:latest
-
-
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -63,8 +64,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.CICD_DEPLOY_ROLE }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          AWS_REGION: eu-west-1
+          aws-region: eu-west-1 
 
       - name: CDK Synth
         run: cdk synth
