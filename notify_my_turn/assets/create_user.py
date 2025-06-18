@@ -1,27 +1,24 @@
 import boto3
 import json
 import os
-import random
-import string
 
-from datetime import datetime
-from boto3.dynamodb.conditions import Key
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 from aws_lambda_powertools.event_handler.api_gateway import Response
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
 
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('dynamo')
-user_table =dynamodb.Table('member_table')
-sender_email = os.environ['sender_email']   
-receiver_email = os.environ['receiver_email']
+dynamodb = boto3.resource("dynamodb")
+table = dynamodb.Table("dynamo")
+user_table = dynamodb.Table("member_table")
+sender_email = os.environ["sender_email"]
+receiver_email = os.environ["receiver_email"]
 lambda_client = boto3.client("lambda")
 
 tracer = Tracer()
 logger = Logger()
 app = APIGatewayRestResolver()
+
 
 @tracer.capture_method
 @app.post("/create_user")
@@ -30,8 +27,17 @@ def new_user():
     data: dict = app.current_event.json_body
 
     required_keys = [
-        "bsn", "f_name", "l_name", "dob", "email", "phone",
-        "house_number", "city", "street", "pincode", "subscribe"
+        "bsn",
+        "f_name",
+        "l_name",
+        "dob",
+        "email",
+        "phone",
+        "house_number",
+        "city",
+        "street",
+        "pincode",
+        "subscribe",
     ]
 
     for key in required_keys:
@@ -39,24 +45,23 @@ def new_user():
             return Response(
                 status_code=400,
                 content_type="application/json",
-                body=json.dumps({"error": f"Missing key: {key}"})
+                body=json.dumps({"error": f"Missing key: {key}"}),
             )
 
     if not isinstance(data["subscribe"], bool):
         return Response(
             status_code=400,
             content_type="application/json",
-            body=json.dumps({"error": "subscribe must be a boolean true or false"})
+            body=json.dumps({"error": "subscribe must be a boolean true or false"}),
         )
 
-   
     try:
         response = user_table.get_item(Key={"bsn": data["bsn"]})
         if "Item" in response:
             return Response(
                 status_code=409,
                 content_type="application/json",
-                body=json.dumps({"error": "User with this BSN already exists"})
+                body=json.dumps({"error": "User with this BSN already exists"}),
             )
     except Exception as e:
         logger.error(f"Error checking for existing user: {str(e)}")
@@ -72,7 +77,7 @@ def new_user():
         "city": data["city"],
         "street": data["street"],
         "pincode": data["pincode"],
-        "subscribe": data["subscribe"]
+        "subscribe": data["subscribe"],
     }
 
     try:
@@ -83,7 +88,7 @@ def new_user():
         return Response(
             status_code=500,
             content_type="application/json",
-            body=json.dumps({"error": "Internal server error"})
+            body=json.dumps({"error": "Internal server error"}),
         )
 
     confirmation = {
@@ -91,9 +96,7 @@ def new_user():
     }
 
     return Response(
-        status_code=200,
-        content_type="application/json",
-        body=json.dumps(confirmation)
+        status_code=200, content_type="application/json", body=json.dumps(confirmation)
     )
 
 
@@ -102,5 +105,3 @@ def new_user():
 def lambda_handler(event: dict, context: LambdaContext):
     logger.info(f"Received event: {json.dumps(event)}")
     return app.resolve(event, context)
-
-
