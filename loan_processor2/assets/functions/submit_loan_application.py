@@ -13,6 +13,7 @@ dynamodb = boto3.resource('dynamodb')
 loan_table = dynamodb.Table(os.environ['TABLE_NAME'])  
 
 
+
 tracer = Tracer()
 logger = Logger()
 app = APIGatewayRestResolver()
