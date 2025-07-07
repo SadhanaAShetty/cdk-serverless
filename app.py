@@ -10,8 +10,12 @@ from dotenv import load_dotenv
 
 # from loan_processor2.loan_processing_stack import LoanProcessingStack
 # from loan_processor3.loan_processing_stack import LoanProcessingStack
-from image_processing.image_processing_stack import ImageProcessingStack
+# from image_processing.image_processing_stack import ImageProcessingStack
 # from loan_processing.loan_processing_stack import LoanProcessingStack
+from receipt_processor.receipt_processor_stack import ReceiptProcessorStack
+
+
+
 
 
 
@@ -40,9 +44,12 @@ app = cdk.App()
 #         env=cdk.Environment(account=account, region=region),
 #             )
 
-stack = ImageProcessingStack(app, "ImageProcessingStack",
-                             env =cdk.Environment(account =account, region = region),
-                             )
+# stack = ImageProcessingStack(app, "ImageProcessingStack",
+#                              env =cdk.Environment(account =account, region = region),
+#                              )
+
+stack = ReceiptProcessorStack(app, "ReceiptProcessorStack",
+                              env = cdk.Environment(account=account, region=region ),)
 app.synth()
 
 
