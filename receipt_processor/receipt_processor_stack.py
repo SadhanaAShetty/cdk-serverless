@@ -43,7 +43,8 @@ class ReceiptProcessorStack(Stack):
             environment={
                 "UPLOAD_BUCKET": upload_bucket.bucket_name,
                 "PARSED_BUCKET": parsed_bucket.bucket_name
-            }
+            },
+            timeout=Duration.seconds(60)
         )
 
         

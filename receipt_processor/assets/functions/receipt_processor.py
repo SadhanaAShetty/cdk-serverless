@@ -96,7 +96,7 @@ def parse_receipt_data(text_lines, comprehend_output):
         elif entity['Type'] == 'DATE' and not receipt_date:
             receipt_date = entity['Text']
 
-    total_keywords = ['total', 'amount due', 'grand total', 'balance', 'amount payable']
+    total_keywords = ['total', 'amount due', 'grand total', 'balance','total amount' 'amount payable']
     amount_regex = r'[\$\€\£]?\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?'
     possible_totals = []
     for line in text_lines:
