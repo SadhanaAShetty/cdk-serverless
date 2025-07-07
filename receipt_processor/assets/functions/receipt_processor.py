@@ -34,6 +34,12 @@ def lambda_handler(event, context):
             logger.info("File is already in the parsed bucket. Skipping processing.")
             return
 
+        if not object_key.lower().endswith(('.jpg', '.jpeg', '.png')):
+            logger.warning(f"Unsupported file format: {object_key}")
+            return {
+                'statusCode': 400,
+                'body': json.dumps('Unsupported file type')
+            }
         
         safe_key = urllib.parse.unquote_plus(object_key)
 
