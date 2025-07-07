@@ -96,19 +96,28 @@ def parse_receipt_data(text_lines, comprehend_output):
         elif entity['Type'] == 'DATE' and not receipt_date:
             receipt_date = entity['Text']
 
-   
+    total_keywords = ['total', 'amount due', 'grand total', 'balance', 'amount payable']
+    amount_regex = r'[\$\€\£]?\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?'
+    possible_totals = []
     for line in text_lines:
-        if 'total' in line.lower():
-            parts = line.split()
-            for part in parts:
-                if part.replace('.', '', 1).isdigit():
-                    total = part
-                    break
-            if total:
-                break
+        line_lower = line.lower()
+        if any(keyword in line_lower for keyword in total_keywords):
+            matches = re.findall(amount_regex, line)
+            for match in matches:
+                clean_amount = match.replace('$', '').replace(',', '').strip()
+                try:
+                    amount = float(clean_amount)
+                    possible_totals.append(amount)
+                except ValueError:
+                    continue
 
     
-    final_date = find_date_in_text(text_lines)
+    if possible_totals:
+        total = f"{max(possible_totals):.2f}" 
+
+    
+    final_date = receipt_date or find_date_in_text(text_lines)
+
 
     receipt['Vendor'] = vendor or 'Unknown'
     receipt['Total'] = total or 'Unknown'
@@ -117,7 +126,7 @@ def parse_receipt_data(text_lines, comprehend_output):
     return receipt
 
 def find_date_in_text(lines):
-    date_pattern = r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b'
+    date_pattern = r'\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b'
     for line in lines:
         match = re.search(date_pattern, line)
         if match:
