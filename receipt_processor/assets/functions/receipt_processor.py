@@ -4,7 +4,7 @@ import logging
 import urllib.parse
 import uuid
 import os
-from dateutil import parser
+from dateutil import parser as dateutil_parser
 import re
 
 
@@ -24,12 +24,10 @@ def lambda_handler(event, context):
     try:
         logger.info(f"Triggered by event: {json.dumps(event)}")
 
-       
         triggered_bucket = event['Records'][0]['s3']['bucket']['name']
         object_key = event['Records'][0]['s3']['object']['key']
         logger.info(f"S3 Trigger - Bucket: {triggered_bucket}, Key: {object_key}")
 
-        
         if triggered_bucket == target_bucket:
             logger.info("File is already in the parsed bucket. Skipping processing.")
             return
@@ -40,10 +38,9 @@ def lambda_handler(event, context):
                 'statusCode': 400,
                 'body': json.dumps('Unsupported file type')
             }
-        
+
         safe_key = urllib.parse.unquote_plus(object_key)
 
-       
         textract_result = textract.analyze_document(
             Document={'S3Object': {'Bucket': triggered_bucket, 'Name': safe_key}},
             FeatureTypes=['TABLES', 'FORMS']
@@ -52,17 +49,14 @@ def lambda_handler(event, context):
         lines = extract_text_lines(textract_result)
         full_text = "\n".join(lines)
 
-     
         comprehend_result = comprehend.detect_entities(
             Text=full_text,
             LanguageCode='en'
         )
 
-       
         parsed_receipt = parse_receipt_data(lines, comprehend_result)
         logger.info(f"Parsed Receipt: {parsed_receipt}")
 
-        
         write_result_to_s3(parsed_receipt, object_key)
 
         return {
@@ -77,6 +71,7 @@ def lambda_handler(event, context):
             'body': json.dumps('An error occurred during processing.')
         }
 
+
 def extract_text_lines(textract_response):
     return [
         block['Text']
@@ -84,25 +79,23 @@ def extract_text_lines(textract_response):
         if block['BlockType'] == 'LINE'
     ]
 
-def parse_receipt_data(text_lines, comprehend_output):
-    receipt = {'ReceiptId': str(uuid.uuid4())}
-    vendor = None
-    total = None
-    receipt_date = None
 
-    for entity in comprehend_output['Entities']:
-        if entity['Type'] == 'ORGANIZATION' and not vendor:
-            vendor = entity['Text']
-        elif entity['Type'] == 'DATE' and not receipt_date:
-            receipt_date = entity['Text']
-
-    total_keywords = ['total', 'amount due', 'grand total', 'balance','total amount','amount payable']
+def extract_total_from_lines(lines):
+    total_keywords = [
+        'total', 'total amount', 'amount due', 'grand total', 'balance due',
+        'amount payable', 'amount to pay'
+    ]
     amount_regex = r'[\$\€\£]?\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?'
     possible_totals = []
-    for line in text_lines:
+
+    for i, line in enumerate(lines):
         line_lower = line.lower()
         if any(keyword in line_lower for keyword in total_keywords):
+
             matches = re.findall(amount_regex, line)
+            if not matches and i + 1 < len(lines):
+
+                matches = re.findall(amount_regex, lines[i + 1])
             for match in matches:
                 clean_amount = match.replace('$', '').replace(',', '').strip()
                 try:
@@ -111,13 +104,33 @@ def parse_receipt_data(text_lines, comprehend_output):
                 except ValueError:
                     continue
 
-    
     if possible_totals:
-        total = f"{max(possible_totals):.2f}" 
+        return f"{max(possible_totals):.2f}"
+    return None
+
+
+def parse_receipt_data(text_lines, comprehend_output):
+    receipt = {'ReceiptId': str(uuid.uuid4())}
+    vendor = None
+    receipt_date = None
+
+    for entity in comprehend_output['Entities']:
+        if entity['Type'] == 'ORGANIZATION' and not vendor:
+            vendor = entity['Text']
+        elif entity['Type'] == 'DATE' and not receipt_date:
+            receipt_date = entity['Text'].replace('\n', ' ').strip()
+            try:
+                dt = dateutil_parser.parse(receipt_date, fuzzy=True)
+                if 1900 < dt.year < 2100:
+                    receipt_date = dt.strftime('%Y-%m-%d')
+            except Exception:
+                pass
+
+    
+    total = extract_total_from_lines(text_lines)
 
     
     final_date = receipt_date or find_date_in_text(text_lines)
-
 
     receipt['Vendor'] = vendor or 'Unknown'
     receipt['Total'] = total or 'Unknown'
@@ -125,18 +138,20 @@ def parse_receipt_data(text_lines, comprehend_output):
 
     return receipt
 
+
 def find_date_in_text(lines):
     date_pattern = r'\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b'
     for line in lines:
         match = re.search(date_pattern, line)
         if match:
             try:
-                dt = parser.parse(match.group(), fuzzy=False)
+                dt = dateutil_parser.parse(match.group(), fuzzy=False)
                 if 1900 < dt.year < 2100:
                     return dt.strftime('%Y-%m-%d')
             except Exception:
                 continue
     return None
+
 
 def write_result_to_s3(data, original_key):
     filename = original_key.split('/')[-1]
