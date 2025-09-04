@@ -1,4 +1,4 @@
-name: Deploy Loan Processor CDK Stack
+name: Deploy Food Delivery CDK Stack
 
 on:
   push:
