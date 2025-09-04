@@ -3,7 +3,7 @@ name: Deploy Loan Processor CDK Stack
 on:
   push:
     branches:
-      - feat/loan_processor2
+      - feat/food_delivery
 permissions:
   id-token: write 
 

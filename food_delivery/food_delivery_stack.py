@@ -1,5 +1,5 @@
 from aws_cdk import (
-    Stack, Duration, RemovalPolicy, CfnOutput,
+    Stack, Duration, RemovalPolicy,
     aws_cognito as cognito,
     aws_apigateway as apigw,
     aws_lambda as lmbda,
