@@ -1,3 +1,4 @@
+import json
 import os
 import boto3
 from urllib.parse import urlencode
@@ -6,14 +7,12 @@ from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
-ses = boto3.client("ses")
+sns = boto3.client("sns")
 client = boto3.client("stepfunctions")
-dynamodb = boto3.resource("dynamodb")
 lambda_client = boto3.client("lambda")
 ssm = boto3.client("ssm")
 
-sender_email = os.environ["sender_email"]
-receiver_email = os.environ["receiver_email"]
+sns_topic_arn = os.environ["APPROVAL_TOPIC_ARN"]
 param_name = os.environ["API_BASE_URL_PARAM"]
 api_base_url = ssm.get_parameter(Name=param_name)["Parameter"]["Value"]
 
@@ -23,16 +22,19 @@ app = APIGatewayRestResolver()
 
 
 @tracer.capture_method
-def send_email(to_email: str, subject: str, body: str):
-    ses.send_email(
-        Source=sender_email,
-        Destination={"ToAddresses": [to_email]},
-        Message={"Subject": {"Data": subject}, "Body": {"Text": {"Data": body}}},
-    )
+def send_sns_notification(subject: str, message: str):
+    try:
+        sns.publish(TopicArn=sns_topic_arn, Subject=subject, Message=message)
+        logger.info("SNS notification sent successfully")
+    except Exception as e:
+        logger.error(f"Failed to send SNS notification: {e}")
+        raise
 
 
 @tracer.capture_method
 def handle_event(event: dict, context: LambdaContext):
+    logger.info(f"Received event: {json.dumps(event)}")
+
     task_token = event.get("taskToken")
     input_data = event.get("input", {})
 
@@ -41,6 +43,7 @@ def handle_event(event: dict, context: LambdaContext):
     name = input_data.get("applicant")
 
     if not (task_token and appointment_id):
+        logger.error("Missing required parameters: taskToken or appointment_id")
         return {"statusCode": 400, "body": "Missing required parameters"}
 
     approve_params = urlencode(
@@ -58,7 +61,7 @@ def handle_event(event: dict, context: LambdaContext):
     approve_url = f"{api_base_url}/approve?{approve_params}"
     deny_url = f"{api_base_url}/deny?{deny_params}"
 
-    subject = "Loan Application Status"
+    subject = "Loan Application Approval Needed"
     body = (
         f"Dear Manager,\n\n"
         f"A loan application requires your review.\n\n"
@@ -69,11 +72,12 @@ def handle_event(event: dict, context: LambdaContext):
         f"Deny: {deny_url}\n"
     )
 
-    send_email(receiver_email, subject, body)
+    logger.info(f"Sending SNS notification with subject: {subject}")
+    send_sns_notification(subject, body)
 
     return {
         "statusCode": 200,
-        "body": f"Approval email sent for appointment_id {appointment_id}",
+        "body": f"SNS notification sent for appointment_id {appointment_id}",
     }
 
 

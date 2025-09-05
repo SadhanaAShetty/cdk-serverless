@@ -3,14 +3,15 @@ from aws_cdk import (
     RemovalPolicy,
     Duration,
     aws_lambda as lmbda,
-    aws_dynamodb as ddb,
     aws_apigateway as apigw,
     aws_logs as logs,
     aws_ssm as ssm,
-    aws_ses as ses,
     aws_iam as iam,
+    aws_sns as sns,
     aws_stepfunctions_tasks as tasks,
     aws_stepfunctions as sfn,
+    aws_rds as rds,
+    aws_ec2 as ec2,
 )
 from aws_cdk.custom_resources import (
     AwsCustomResource,
@@ -24,111 +25,165 @@ class LoanProcessingStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # dynamodb
-        loan_table = ddb.TableV2(
+        # VPC
+        vpc = ec2.Vpc(self, "LoanProcessingVpc", max_azs=2)
+
+
+        # vpc = ec2.Vpc.from_lookup(
+        #     self, 'dev_vpc',
+        #     vpc_id='vpc-XXXXXXXXXXXXXXXXX',
+        #     subnet_selection=ec2.SubnetSelection(subnet_ids=["subnet-XXXXXXXXXXXXXXXXX", "subnet-XXXXXXXXXXXXXXXXX"])
+        # )
+
+        # Aurora Serverless v2
+        db_credentials_secret = rds.Credentials.from_generated_secret("dbadmin")
+        
+        loan_db = rds.DatabaseCluster(
             self,
-            "LoanApplication",
-            table_name="loan_table",
-            partition_key=ddb.Attribute(
-                name="appointment_id", type=ddb.AttributeType.STRING
+            "LoanDatabase",
+            cluster_identifier="loan-db",
+            engine=rds.DatabaseClusterEngine.aurora_mysql(
+                version=rds.AuroraMysqlEngineVersion.VER_3_07_1
             ),
-            billing=ddb.Billing.provisioned(
-                read_capacity=ddb.Capacity.fixed(2),
-                write_capacity=ddb.Capacity.autoscaled(min_capacity=1, max_capacity=3),
+            writer=rds.ClusterInstance.serverless_v2("writer",
+                publicly_accessible=False
             ),
+            credentials=db_credentials_secret,
+            vpc=vpc,
+            serverless_v2_min_capacity=0.5, 
+            serverless_v2_max_capacity=2,     
+            default_database_name="loan_db",
             removal_policy=RemovalPolicy.DESTROY,
+            enable_data_api=True
         )
 
-        # ssm for email
-        sender = ssm.StringParameter.from_string_parameter_name(
-            self,
-            "SesSenderIdentityParam",
-            string_parameter_name="/ses/parameter/email/sender",
-        ).string_value
-
+        # SNS for approvals
         receiver = ssm.StringParameter.from_string_parameter_name(
             self,
             "SesReceiverIdentityParam",
             string_parameter_name="/ses/parameter/email/receiver",
         ).string_value
-
-        ses_service = ses.EmailIdentity.from_email_identity_name(
-            self, "ExistingEmailNotification", sender
-        )
-        ses_receiver_service = ses.EmailIdentity.from_email_identity_name(
-            self, "ExistingEmailReceiver", receiver
-        )
-
-        # powertools
-        powertool_layer = lmbda.LayerVersion.from_layer_version_arn(
+        approval_topic = sns.Topic(self, "ApprovalTopic")
+        sns.CfnSubscription(
             self,
-            "Layer",
+            "ApprovalEmailSubscription",
+            protocol="email",
+            topic_arn=approval_topic.topic_arn,
+            endpoint=receiver,
+        )
+        publish_role = iam.Role(
+            self,
+            "SnsPublishRole",
+            assumed_by=iam.ServicePrincipal("states.amazonaws.com"),
+        )
+        approval_topic.grant_publish(publish_role)
+
+        # Powertools layer 
+        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
+            self,
+            "PowertoolsLayer",
             "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79",
         )
 
-        # application lambda
+        # Lambda: Submit loan
         submit_lambda = lmbda.Function(
             self,
-            "SubmitLoanHandler",
+            "SubmitLoanRequestHandler",
             function_name="submit_loan_application",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="submit_loan_application.lambda_handler",
-            code=lmbda.Code.from_asset("loan_processing/assets/functions"),
-            layers=[powertool_layer],
+            code=lmbda.Code.from_asset("loan_processor3/assets/functions"),
+            layers=[powertools_layer],
+            vpc=vpc,
             environment={
                 "STATE_MACHINE_ARN": "placeholder",
-                "TABLE_NAME": loan_table.table_name,
-                "sender_email": sender,
-                "receiver_email": receiver,
+                "DB_SECRET_ARN": loan_db.secret.secret_arn,
+                "DB_CLUSTER_ARN": loan_db.cluster_arn,
+                "DATABASE_NAME": "loan_db",
             },
         )
-        loan_table.grant_read_write_data(submit_lambda)
+        loan_db.secret.grant_read(submit_lambda)
+        loan_db.grant_connect(submit_lambda, "dbadmin")
+        submit_lambda.role.add_managed_policy(
+            iam.ManagedPolicy.from_aws_managed_policy_name("AmazonRDSDataFullAccess")
+        )
 
-        # auto approve
+        # Lambda: Auto-approve
         auto_approve_lambda = lmbda.Function(
             self,
             "AutoApproveHandler",
             function_name="auto_approve",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="auto_approve.lambda_handler",
-            code=lmbda.Code.from_asset("loan_processing/assets/functions"),
-            layers=[powertool_layer],
+            code=lmbda.Code.from_asset("loan_processor3/assets/functions"),
+            layers=[powertools_layer],
+            vpc=vpc,
             environment={
-                "TABLE_NAME": loan_table.table_name,
-                "sender_email": sender,
+                "DB_SECRET_ARN": loan_db.secret.secret_arn,
+                "DB_CLUSTER_ARN": loan_db.cluster_arn,
+                "DATABASE_NAME": "loan_db",
+                "APPROVAL_TOPIC_ARN": approval_topic.topic_arn,
                 "receiver_email": receiver,
             },
         )
-        loan_table.grant_read_write_data(auto_approve_lambda)
-        ses_service.grant_send_email(auto_approve_lambda)
-        ses_receiver_service.grant_send_email(auto_approve_lambda)
+        auto_approve_lambda.role.add_managed_policy(
+            iam.ManagedPolicy.from_aws_managed_policy_name("AmazonRDSDataFullAccess")
+        )
+        approval_topic.grant_publish(auto_approve_lambda)
+        loan_db.secret.grant_read(auto_approve_lambda)
+        loan_db.grant_connect(auto_approve_lambda, "dbadmin")
 
-        # manager request email
+        # Lambda: Manager decision
+        manager_decision_lambda = lmbda.Function(
+            self,
+            "ManagerDecisionHandler",
+            function_name="manager_decision",
+            runtime=lmbda.Runtime.PYTHON_3_12,
+            handler="manager_decision.lambda_handler",
+            code=lmbda.Code.from_asset("loan_processor3/assets/functions"),
+            layers=[powertools_layer],
+            vpc=vpc,
+            environment={
+                "DB_SECRET_ARN": loan_db.secret.secret_arn,
+                "DB_CLUSTER_ARN": loan_db.cluster_arn,
+                "DATABASE_NAME": "loan_db",
+                "APPROVAL_TOPIC_ARN": approval_topic.topic_arn,
+            },
+        )
+        manager_decision_lambda.role.add_managed_policy(
+            iam.ManagedPolicy.from_aws_managed_policy_name("AmazonRDSDataFullAccess")
+        )
+        manager_decision_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["states:SendTaskSuccess", "states:SendTaskFailure"],
+                resources=["*"]
+            )
+        )
+        loan_db.secret.grant_read(manager_decision_lambda)
+        loan_db.grant_connect(manager_decision_lambda, "dbadmin")
+        approval_topic.grant_publish(manager_decision_lambda)
+
+        # Lambda Request approval
         request_approval_lambda = lmbda.Function(
             self,
             "RequestApprovalHandler",
             function_name="approval_request",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="approval_request.lambda_handler",
-            code=lmbda.Code.from_asset("loan_processing/assets/functions"),
-            layers=[powertool_layer],
+            code=lmbda.Code.from_asset("loan_processor3/assets/functions"),
+            layers=[powertools_layer],
             environment={
-                "TABLE_NAME": loan_table.table_name,
-                "sender_email": sender,
-                "receiver_email": receiver,
                 "API_BASE_URL_PARAM": "/loan/api_base_url",
+                "APPROVAL_TOPIC_ARN": approval_topic.topic_arn,
             },
         )
-        loan_table.grant_read_write_data(request_approval_lambda)
-        ses_service.grant_send_email(request_approval_lambda)
-        ses_receiver_service.grant_send_email(request_approval_lambda)
+        approval_topic.grant_publish(request_approval_lambda)
         request_approval_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["states:SendTaskSuccess", "states:SendTaskFailure"],
                 resources=["*"],
             )
         )
-
         request_approval_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ssm:GetParameter"],
@@ -138,11 +193,10 @@ class LoanProcessingStack(Stack):
             )
         )
 
-        # step function
-        is_small_amount = sfn.Choice(self, "Amount <= 3000")
-        auto_approve = tasks.LambdaInvoke(
+        # Step Function 
+        auto_approve_task = tasks.LambdaInvoke(
             self,
-            "Auto Approve",
+            "Auto-Approve Lambda Task",
             lambda_function=auto_approve_lambda,
             output_path="$.Payload",
         )
@@ -159,69 +213,53 @@ class LoanProcessingStack(Stack):
             ),
             timeout=Duration.hours(1),
         )
-
-        definition = is_small_amount.when(
-            sfn.Condition.number_less_than_equals("$.amount", 3000), auto_approve
-        ).otherwise(request_approval)
+        approval_choice = sfn.Choice(self, "Approval/Decline")
+        approved = sfn.Succeed(self, "Approved")
+        declined = sfn.Fail(self, "Declined")
+        approval_choice.when(
+            sfn.Condition.string_equals("$.status", "approved"), approved
+        )
+        approval_choice.when(
+            sfn.Condition.string_equals("$.status", "denied"), declined
+        )
+        loan_check = sfn.Choice(self, "Loan >= $3000")
+        loan_check.when(
+            sfn.Condition.number_less_than("$.amount", 3000), auto_approve_task
+        )
+        loan_check.otherwise(request_approval.next(approval_choice))
+        definition = loan_check
 
         state_machine = sfn.StateMachine(
-            self, "LoanProcessingStateMachine", definition=definition
+            self,
+            "LoanRequestStateMachine",
+            definition=definition,
+            state_machine_type=sfn.StateMachineType.STANDARD,
         )
-
+        state_machine.grant_start_execution(submit_lambda)
         submit_lambda.add_environment(
             "STATE_MACHINE_ARN", state_machine.state_machine_arn
         )
-        state_machine.grant_start_execution(submit_lambda)
 
-        # manager_decission
-        manager_decision_lambda = lmbda.Function(
-            self,
-            "ManagerDecisionHandler",
-            function_name="manager_decision",
-            runtime=lmbda.Runtime.PYTHON_3_12,
-            handler="manager_decision.lambda_handler",
-            code=lmbda.Code.from_asset("loan_processing/assets/functions"),
-            layers=[powertool_layer],
-            environment={
-                "TABLE_NAME": loan_table.table_name,
-                "sender_email": sender,
-                "receiver_email": receiver,
-            },
-        )
-        loan_table.grant_read_write_data(manager_decision_lambda)
-        ses_service.grant_send_email(manager_decision_lambda)
-        ses_receiver_service.grant_send_email(manager_decision_lambda)
-        state_machine.grant_task_response(manager_decision_lambda)
-
-        # api
+        # API Gateway
         api = apigw.RestApi(
-            self, "LoanProcessorApi", rest_api_name="LoanProcessorApi", deploy=False
+            self, "LoanRequestApi", rest_api_name="LoanRequestApi", deploy=False
         )
-
-        # /loan_application POST
         loan_resource = api.root.add_resource("loan_application")
-        post_method_1 = loan_resource.add_method(
+        post_method = loan_resource.add_method(
             "POST", apigw.LambdaIntegration(submit_lambda), api_key_required=True
         )
-
-        # /approve GET
         approve_resource = api.root.add_resource("approve")
         approve_method = approve_resource.add_method(
-            "GET",
-            apigw.LambdaIntegration(manager_decision_lambda),
-            api_key_required=False,
+            "GET", apigw.LambdaIntegration(manager_decision_lambda)
         )
-
-        # /deny GET
         deny_resource = api.root.add_resource("deny")
         deny_method = deny_resource.add_method(
-            "GET",
-            apigw.LambdaIntegration(manager_decision_lambda),
-            api_key_required=False,
+            "GET", apigw.LambdaIntegration(manager_decision_lambda)
         )
 
-        log_group = logs.LogGroup(self, "DevLogs", retention=logs.RetentionDays.ONE_DAY)
-
+        log_group = logs.LogGroup(
+            self, "LoanRequestLogs", retention=logs.RetentionDays.ONE_DAY
+        )
         deployment = apigw.Deployment(self, "Deployment", api=api)
         stage = apigw.Stage(
             self,
@@ -238,15 +276,13 @@ class LoanProcessingStack(Stack):
                 resource_path=True,
                 response_length=True,
                 status=True,
-                user=True,
-            ),
+                user=True
+            )
         )
-
         api.deployment_stage = stage
 
         api_base_url = f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/{stage.stage_name}"
-
-        ssm_put_parameter = AwsCustomResource(
+        AwsCustomResource(
             self,
             "PutApiBaseUrlParam",
             on_create={
@@ -272,16 +308,15 @@ class LoanProcessingStack(Stack):
         key = api.add_api_key("ApiKey")
         plan = api.add_usage_plan(
             "UsagePlan",
-            name="Easy",
+            name="StandardPlan",
             throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2),
         )
         plan.add_api_key(key)
-
         plan.add_api_stage(
             stage=stage,
             throttle=[
                 apigw.ThrottlingPerMethod(
-                    method=post_method_1,
+                    method=post_method,
                     throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2),
                 ),
                 apigw.ThrottlingPerMethod(
