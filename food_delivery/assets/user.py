@@ -12,7 +12,7 @@ logger = Logger()
 tracer = Tracer()
 app = APIGatewayRestResolver()
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(os.getenv("TABLE_NAME", "UserTable"))
+table = dynamodb.Table("UserTable")
 
 
 @tracer.capture_method
