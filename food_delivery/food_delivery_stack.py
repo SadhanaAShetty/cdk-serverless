@@ -21,6 +21,12 @@ class FoodDeliveryStack(Stack):
             removal_policy=RemovalPolicy.DESTROY
         )
 
+        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
+            self,
+            "PowertoolsLayer",
+            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79",
+        )
+
         # Cognito User Pool
         user_pool = cognito.UserPool(self, "UserPool",
             user_pool_name="food-order-userpool",
@@ -83,7 +89,8 @@ class FoodDeliveryStack(Stack):
             function_name="user_lambda",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="user.lambda_handler",
-            code=lmbda.Code.from_asset("assets"),
+            code=lmbda.Code.from_asset("assets/user"),
+            layers=[powertools_layer],
             environment={"TABLE_NAME": table.table_name}
         )
 
