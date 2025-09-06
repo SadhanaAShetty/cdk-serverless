@@ -94,8 +94,10 @@ class FoodDeliveryStack(Stack):
             layers=[powertools_layer],
             environment={
                 "TABLE_NAME": table.table_name
-                }
+                },
+                timeout=Duration.seconds(10)
         )
+
 
         table.grant_read_write_data(user_lambda)
 
@@ -148,28 +150,28 @@ class FoodDeliveryStack(Stack):
         delete_user_id = user_id.add_method("DELETE", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
 
         plan.add_api_stage(
-    stage=stage,
-    throttle=[
-        apigw.ThrottlingPerMethod(
-            method=get_users,
-            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-        ),
-        apigw.ThrottlingPerMethod(
-            method=post_users,
-            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-        ),
-        apigw.ThrottlingPerMethod(
-            method=get_user_id,
-            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-        ),
-        apigw.ThrottlingPerMethod(
-            method=put_user_id,
-            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-        ),
-        apigw.ThrottlingPerMethod(
-            method=delete_user_id,
-            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-        ),
-    ]
-)
-     
+        stage=stage,
+        throttle=[
+            apigw.ThrottlingPerMethod(
+                method=get_users,
+                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+            ),
+            apigw.ThrottlingPerMethod(
+                method=post_users,
+                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+            ),
+            apigw.ThrottlingPerMethod(
+                method=get_user_id,
+                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+            ),
+            apigw.ThrottlingPerMethod(
+                method=put_user_id,
+                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+            ),
+            apigw.ThrottlingPerMethod(
+                method=delete_user_id,
+                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+            ),
+        ]
+    )
+        

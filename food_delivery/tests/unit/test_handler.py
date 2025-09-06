@@ -233,4 +233,3 @@ def test_delete_user():
         
         assert "message" in data
         assert "deleted" in data["message"].lower()
-
