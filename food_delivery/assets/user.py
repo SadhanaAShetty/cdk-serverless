@@ -133,4 +133,3 @@ def lambda_handler(event: dict, context):
     print("DEBUG incoming event:", json.dumps(event))
     return app.resolve(event, context)
 
-

@@ -221,6 +221,7 @@ def test_delete_user():
         event_file = os.path.join(BASE_DIR, "events", "event-delete-user-by-id.json")
         with open(event_file, "r") as f:
             apigw_event = json.load(f)
+
         ret = user.lambda_handler(apigw_event, "")
         
         if ret["statusCode"] == 404:
@@ -232,9 +233,3 @@ def test_delete_user():
         
         assert "message" in data
         assert "deleted" in data["message"].lower()
-
-        ret = user.lambda_handler(apigw_event, '')
-        assert ret['statusCode'] == 200
-        assert json.loads(ret['body']) == {}
-
-

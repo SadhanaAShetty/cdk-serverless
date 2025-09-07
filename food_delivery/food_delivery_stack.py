@@ -95,7 +95,8 @@ class FoodDeliveryStack(Stack):
             environment={
                 "TABLE_NAME": table.table_name
                 },
-                timeout=Duration.seconds(10)
+            timeout=Duration.seconds(10)
+
         )
 
 
