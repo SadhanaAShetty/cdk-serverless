@@ -1,6 +1,6 @@
-
 import os
 import uuid
+import json
 from datetime import datetime
 
 import boto3
@@ -12,22 +12,32 @@ logger = Logger()
 tracer = Tracer()
 app = APIGatewayRestResolver()
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table("UserTable")
+table = dynamodb.Table(os.environ["TABLE_NAME"])
 
 
 @tracer.capture_method
 @app.get("/users")
-def get_all_handler():
+def get_list_of_users():
     try:
         response = table.scan()
-        data = response.get("Items", [])
+        items = response.get("Items", [])
         while "LastEvaluatedKey" in response:
             response = table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
-            data.extend(response.get("Items", []))
-        return {"statusCode": 200, "body": data}
+            items.extend(response.get("Items", []))
+
+        user = [
+            {
+                "userid": item.get("user_id"),
+                "name": item.get("name"),
+                "timestamp": item.get("time_stamp")
+            }
+            for item in items
+        ]
+
+        return {"statusCode": 200, "body": json.dumps(user)}
     except Exception as e:
         logger.error(f"Scan failed: {e}")
-        return {"statusCode": 500, "body": {"error": "Internal Server Error"}}
+        return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
 
 
 @tracer.capture_method
@@ -36,11 +46,11 @@ def get_handler(userid: str):
     try:
         response = table.get_item(Key={"user_id": userid})
         if "Item" not in response:
-            return {"statusCode": 404, "body": {"error": "User ID not found"}}
-        return {"statusCode": 200, "body": response["Item"]}
+            return {"statusCode": 404, "body": json.dumps({"error": "User ID not found"})}
+        return {"statusCode": 200, "body": json.dumps(response["Item"])}
     except Exception as e:
         logger.error(f"Error retrieving user: {str(e)}")
-        return {"statusCode": 500, "body": {"error": "Internal Server Error"}}
+        return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
 
 
 @tracer.capture_method
@@ -50,7 +60,7 @@ def post_handler():
     required_keys = ["user_id", "item", "address", "phone", "email"]
     for key in required_keys:
         if key not in data:
-            return {"statusCode": 400, "body": {"error": f"Missing key: {key}"}}
+            return {"statusCode": 400, "body": json.dumps({"error": f"Missing key: {key}"})}
 
     order_id = str(uuid.uuid4())
     item_to_store = {
@@ -67,17 +77,17 @@ def post_handler():
         table.put_item(Item=item_to_store)
         return {
             "statusCode": 200,
-            "body": {
+            "body": json.dumps({
                 "message": "Order received successfully!",
                 "order_id": order_id,
                 "user_id": data["user_id"],
                 "item": data["item"],
                 "address": data["address"]
-            }
+            })
         }
     except Exception as e:
         logger.error(f"Error creating order: {str(e)}")
-        return {"statusCode": 500, "body": {"error": "Internal Server Error"}}
+        return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
 
 
 @tracer.capture_method
@@ -85,17 +95,17 @@ def post_handler():
 def put_handler(userid: str):
     data: dict = app.current_event.json_body
     if not data:
-        return {"statusCode": 400, "body": {"error": "Request body is empty"}}
+        return {"statusCode": 400, "body": json.dumps({"error": "Request body is empty"})}
 
     data["user_id"] = userid
     data["time_stamp"] = datetime.utcnow().isoformat()
 
     try:
         table.put_item(Item=data)
-        return {"statusCode": 200, "body": data}
+        return {"statusCode": 200, "body": json.dumps(data)}
     except Exception as e:
         logger.error(f"Error updating user: {str(e)}")
-        return {"statusCode": 500, "body": {"error": "Internal Server Error"}}
+        return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
 
 
 @tracer.capture_method
@@ -103,12 +113,13 @@ def put_handler(userid: str):
 def delete_handler(userid: str):
     try:
         table.delete_item(Key={"user_id": userid})
-        return {"statusCode": 200, "body": {"message": f"User {userid} deleted"}}
+        return {"statusCode": 200, "body": json.dumps({"message": f"User {userid} deleted"})}
     except Exception as e:
         logger.error(f"Error deleting user: {str(e)}")
-        return {"statusCode": 500, "body": {"error": "Internal Server Error"}}
+        return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
 
 
-@logger.inject_lambda_context
-def lambda_handler(event: dict, context: LambdaContext):
+# @logger.inject_lambda_context
+# def lambda_handler(event: dict, context: LambdaContext):
+def lambda_handler(event: dict, context):
     return app.resolve(event, context)

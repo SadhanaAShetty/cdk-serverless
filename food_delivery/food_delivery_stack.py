@@ -91,7 +91,9 @@ class FoodDeliveryStack(Stack):
             handler="user.lambda_handler",
             code=lmbda.Code.from_asset("assets/user"),
             layers=[powertools_layer],
-            environment={"TABLE_NAME": table.table_name}
+            environment={
+                "TABLE_NAME": table.table_name
+                }
         )
 
         table.grant_read_write_data(user_lambda)
