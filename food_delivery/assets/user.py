@@ -68,17 +68,14 @@ def get_single_user(userid: str):
 def post_user():
     data: dict = app.current_event.json_body
     
-    
     if "user_id" not in data:
         data["user_id"] = str(uuid.uuid1())
-    
    
     required_keys = ["name"]
     for key in required_keys:
         if key not in data:
             return {"statusCode": 400, "body": json.dumps({"error": f"Missing key: {key}"})}
 
-    
     item_to_store = {
         "user_id": data["user_id"],
         "name": data["name"],
