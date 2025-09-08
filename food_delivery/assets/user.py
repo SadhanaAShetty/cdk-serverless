@@ -25,7 +25,7 @@ def get_list_of_users():
             response = table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
             items.extend(response.get("Items", []))
 
-        user = [
+        users = [
             {
                 "userid": item.get("user_id"),
                 "name": item.get("name"),
@@ -34,7 +34,7 @@ def get_list_of_users():
             for item in items
         ]
 
-        return {"statusCode": 200, "body": json.dumps(user)}
+        return {"statusCode": 200, "body": json.dumps(users)}
     except Exception as e:
         logger.error(f"Scan failed: {e}")
         return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
@@ -63,24 +63,25 @@ def get_single_user(userid: str):
         return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
 
 
-
 @tracer.capture_method
 @app.post("/users")
-def post_handler():
+def post_user():
     data: dict = app.current_event.json_body
-    required_keys = ["user_id", "item", "address", "phone", "email"]
+    
+    
+    if "user_id" not in data:
+        data["user_id"] = str(uuid.uuid1())
+    
+   
+    required_keys = ["name"]
     for key in required_keys:
         if key not in data:
             return {"statusCode": 400, "body": json.dumps({"error": f"Missing key: {key}"})}
 
-    order_id = str(uuid.uuid4())
+    
     item_to_store = {
-        "order_id": order_id,
         "user_id": data["user_id"],
-        "item": data["item"],
-        "address": data["address"],
-        "phone": data["phone"],
-        "email": data["email"],
+        "name": data["name"],
         "time_stamp": datetime.utcnow().isoformat()
     }
 
@@ -89,15 +90,13 @@ def post_handler():
         return {
             "statusCode": 200,
             "body": json.dumps({
-                "message": "Order received successfully!",
-                "order_id": order_id,
-                "user_id": data["user_id"],
-                "item": data["item"],
-                "address": data["address"]
+                "user_id": item_to_store["user_id"],
+                "name": item_to_store["name"],
+                "timestamp": item_to_store["time_stamp"]
             })
         }
     except Exception as e:
-        logger.error(f"Error creating order: {str(e)}")
+        logger.error(f"Error creating user: {str(e)}")
         return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
 
 

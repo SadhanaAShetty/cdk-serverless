@@ -4,5 +4,8 @@
   "headers": {
     "Content-Type": "application/json"
   },
-  "body": "{\"name\": \"New User\"}"
+  "queryStringParameters": null,
+  "pathParameters": null,
+  "body": "{\"name\": \"Test User\"}",
+  "isBase64Encoded": false
 }
