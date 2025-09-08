@@ -43,7 +43,7 @@ def get_list_of_users():
 @tracer.capture_method
 @app.get("/users/{userid}")
 def get_single_user(userid: str):
-    print("DEBUG: userid received ->", userid)
+    print("DEBUG: get_single_user called with userid ->", userid)
     try:
         response = table.get_item(Key={"user_id": userid})
         if "Item" not in response:
