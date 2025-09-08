@@ -8,7 +8,7 @@ from moto import mock_dynamodb
 from contextlib import contextmanager
 from unittest.mock import patch
 
-# Add the project root to Python path so we can import assets
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 USERS_MOCK_TABLE_NAME = "Users"
