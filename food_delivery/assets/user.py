@@ -1,3 +1,4 @@
+
 import os
 import uuid
 import json
@@ -132,4 +133,3 @@ def delete_handler(userid: str):
 def lambda_handler(event: dict, context):
     print("DEBUG incoming event:", json.dumps(event))
     return app.resolve(event, context)
-
