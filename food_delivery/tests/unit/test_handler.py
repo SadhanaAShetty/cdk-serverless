@@ -58,6 +58,8 @@ def put_data_dynamodb():
     )
 
 
+
+# @pytest.mark.skip("skip")
 @patch.dict(os.environ, {'TABLE_NAME': USERS_MOCK_TABLE_NAME, 'AWS_XRAY_CONTEXT_MISSING': 'LOG_ERROR'})
 def test_get_list_of_users():
     with my_test_environment():
@@ -72,9 +74,8 @@ def test_get_list_of_users():
         ]
 
         ret = user.lambda_handler(apigw_get_all_users_event, '')
+        print("Lambda returned:", ret)
         assert ret['statusCode'] == 200
-
-        
         data = json.loads(ret['body'])
 
         if isinstance(data, dict) and "body" in data:
@@ -89,27 +90,41 @@ def test_get_list_of_users():
                 data = inner
         assert data == expected_response
 
-
-
-
-@pytest.mark.skip("skip")
+@patch.dict(os.environ, {'TABLE_NAME': USERS_MOCK_TABLE_NAME, 'AWS_XRAY_CONTEXT_MISSING': 'LOG_ERROR'})
 def test_get_single_user():
     with my_test_environment():
         from food_delivery.assets import user
         event_file = os.path.join(BASE_DIR, 'events', 'event-get-user-by-id.json')
         with open(event_file, 'r') as f:
             apigw_event = json.load(f)
+        apigw_event['pathParameters'] = {"userid": 'f8216640-91a2-11eb-8ab9-57aa454facef'}
 
         expected_response = {
-            'user_id': UUID_MOCK_VALUE_JOHN,
+            'userid': UUID_MOCK_VALUE_JOHN,
             'name': 'John Doe',
             'timestamp': '2021-03-30T21:57:49.860Z'
         }
-
         ret = user.lambda_handler(apigw_event, '')
+        print("Lambda returned:", ret)
         assert ret['statusCode'] == 200
+        outer_body = ret['body']
+        if isinstance(outer_body, str):
+            outer_body = json.loads(outer_body)
+
+       
+        inner_body = outer_body.get('body', outer_body)
+        if isinstance(inner_body, str):
+            inner_body = json.loads(inner_body)
+
+        data = inner_body
+        print("Parsed data:", data)
+
+        assert outer_body== expected_response
         data = json.loads(ret['body'])
         assert data == expected_response
+
+
+        
 
 @pytest.mark.skip("skip")
 def test_get_single_user_wrong_id():

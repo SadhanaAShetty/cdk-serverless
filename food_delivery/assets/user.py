@@ -42,15 +42,26 @@ def get_list_of_users():
 
 @tracer.capture_method
 @app.get("/users/{userid}")
-def get_handler(userid: str):
+def get_single_user(userid: str):
+    print("DEBUG: userid received ->", userid)
     try:
         response = table.get_item(Key={"user_id": userid})
         if "Item" not in response:
             return {"statusCode": 404, "body": json.dumps({"error": "User ID not found"})}
-        return {"statusCode": 200, "body": json.dumps(response["Item"])}
+
+        item = response["Item"]
+
+        result = {
+            "userid": item["user_id"],
+            "name": item["name"],
+            "timestamp": item["time_stamp"]
+        }
+
+        return {"statusCode": 200, "body": json.dumps(result)}
     except Exception as e:
         logger.error(f"Error retrieving user: {str(e)}")
         return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
+
 
 
 @tracer.capture_method
@@ -119,7 +130,11 @@ def delete_handler(userid: str):
         return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
 
 
+
 # @logger.inject_lambda_context
-# def lambda_handler(event: dict, context: LambdaContext):
+# @tracer.capture_lambda_handler
 def lambda_handler(event: dict, context):
+    print("DEBUG incoming event:", json.dumps(event))
     return app.resolve(event, context)
+
+
