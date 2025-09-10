@@ -34,18 +34,17 @@ class FoodDeliveryStack(Stack):
             sign_in_aliases=cognito.SignInAliases(email=True),
             auto_verify=cognito.AutoVerifiedAttrs(email=True),
             standard_attributes=cognito.StandardAttributes(
-                name=cognito.StandardAttribute(required=True, mutable=True),
+                fullname=cognito.StandardAttribute(required=True, mutable=True),
                 email=cognito.StandardAttribute(required=True, mutable=True),
             ),
         )
 
         user_pool_client = cognito.UserPoolClient(self, "UserPoolClient",
             user_pool=user_pool,
-            client_name=f"{self.stack_name}UserPoolClient",
             generate_secret=False,
             prevent_user_existence_errors=True,
             auth_flows=cognito.AuthFlow(
-                user_password=True, user_srp=True, refresh_token=True
+                user_password=True, user_srp=True
             ),
             o_auth=cognito.OAuthSettings(
                 flows=cognito.OAuthFlows(authorization_code_grant=True),
@@ -57,6 +56,7 @@ class FoodDeliveryStack(Stack):
             ],
         )
 
+
         domain = cognito.UserPoolDomain(self, "UserPoolDomain",
             user_pool=user_pool,
             cognito_domain=cognito.CognitoDomainOptions(domain_prefix="food-delivery-domain")
@@ -67,11 +67,12 @@ class FoodDeliveryStack(Stack):
             group_name="admin"
         )
 
+
         # Authorizer Lambda
         authorizer_lambda = lmbda.Function(self, "AuthorizerLambda",
             runtime=lmbda.Runtime.PYTHON_3_11,
-            handler="authorizer.lmbda_handler",
-            code=lmbda.Code.from_asset("assets"),
+            handler="autherize.lambda_handler",
+            code=lmbda.Code.from_asset("food_delivery/assets"),
             environment={
                 "USER_POOL_ID": user_pool.user_pool_id,
                 "APPLICATION_CLIENT_ID": user_pool_client.user_pool_client_id,
@@ -89,7 +90,7 @@ class FoodDeliveryStack(Stack):
             function_name="user_lambda",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="user.lambda_handler",
-            code=lmbda.Code.from_asset("assets/user"),
+            code=lmbda.Code.from_asset("food_delivery/assets"),
             layers=[powertools_layer],
             environment={
                 "TABLE_NAME": table.table_name
@@ -138,38 +139,37 @@ class FoodDeliveryStack(Stack):
         api.deployment_stage = stage
 
         users = api.root.add_resource("users")
-        users.add_method("GET", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
-        users.add_method("POST", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
+        get_users = users.add_method("GET", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
+        post_users = users.add_method("POST", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
 
         user_id = users.add_resource("{userid}")
-        user_id.add_method("GET", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
-        user_id.add_method("PUT", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
-        user_id.add_method("DELETE", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
+        get_user_id = user_id.add_method("GET", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
+        put_user_id = user_id.add_method("PUT", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
+        delete_user_id = user_id.add_method("DELETE", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
 
         plan.add_api_stage(
-            stage=stage,
-            throttle=[
-                apigw.ThrottlingPerMethod(
-                    method=users.get_method("GET"),
-                    throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-                ),
-                apigw.ThrottlingPerMethod(
-                    method=users.get_method("POST"),
-                    throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-                ),
-                apigw.ThrottlingPerMethod(
-                    method=user_id.get_method("GET"),
-                    throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-                ),
-                apigw.ThrottlingPerMethod(
-                    method=user_id.get_method("PUT"),
-                    throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-                ),
-                apigw.ThrottlingPerMethod(
-                    method=user_id.get_method("DELETE"),
-                    throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-                ),
-            ]
-        )
-
+    stage=stage,
+    throttle=[
+        apigw.ThrottlingPerMethod(
+            method=get_users,
+            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+        ),
+        apigw.ThrottlingPerMethod(
+            method=post_users,
+            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+        ),
+        apigw.ThrottlingPerMethod(
+            method=get_user_id,
+            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+        ),
+        apigw.ThrottlingPerMethod(
+            method=put_user_id,
+            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+        ),
+        apigw.ThrottlingPerMethod(
+            method=delete_user_id,
+            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
+        ),
+    ]
+)
      
