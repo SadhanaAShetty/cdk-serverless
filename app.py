@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 # from loan_processor3.loan_processing_stack import LoanProcessingStack
 # from image_processing.image_processing_stack import ImageProcessingStack
 # from loan_processing.loan_processing_stack import LoanProcessingStack
+from food_delivery.food_delivery_stack import FoodDeliveryStack
 
 
 
@@ -43,6 +44,7 @@ app = cdk.App()
 #         env=cdk.Environment(account=account, region=region),
 #             )
 
+
 # loan Processing
 # stack = LoanProcessingStack(
 #     app,
@@ -54,4 +56,9 @@ app = cdk.App()
 # stack = ImageProcessingStack(app, "ImageProcessingStack",
 #                              env =cdk.Environment(account =account, region = region),
 #                              )
+
+stack = FoodDeliveryStack(app, "FoodDeliveryStack",
+                             env =cdk.Environment(account =account, region = region),
+                             )
+
 app.synth()

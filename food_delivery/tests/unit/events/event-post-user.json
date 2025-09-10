@@ -1,0 +1,11 @@
+{
+  "httpMethod": "POST",
+  "path": "/users",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "queryStringParameters": null,
+  "pathParameters": null,
+  "body": "{\"name\": \"Test User\"}",
+  "isBase64Encoded": false
+}
