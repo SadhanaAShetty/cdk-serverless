@@ -1,5 +1,5 @@
 from aws_cdk import (
-    Stack, Duration, RemovalPolicy,
+    Stack, Duration, RemovalPolicy, CfnOutput,
     aws_cognito as cognito,
     aws_apigateway as apigw,
     aws_lambda as lmbda,
@@ -173,6 +173,14 @@ class FoodDeliveryStack(Stack):
                 method=delete_user_id,
                 throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
             ),
-        ]
-    )
-        
+        ])
+    
+
+
+
+        CfnOutput(self, "UserPool", value=user_pool.user_pool_id)
+        CfnOutput(self, "UserPoolClient", value=user_pool_client.user_pool_client_id)
+        CfnOutput(self, "UserPoolAdminGroupName", value=group.group_name)
+        CfnOutput(self, "UsersTable", value=table.table_name)
+        CfnOutput(self, "FoodAppApiKey", value=api_key.key_id)
+        CfnOutput(self, "ApiUrl", value=api.url)  
