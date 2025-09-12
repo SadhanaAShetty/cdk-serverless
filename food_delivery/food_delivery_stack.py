@@ -184,4 +184,6 @@ class FoodDeliveryStack(Stack):
         CfnOutput(self, "UsersTableOutput", value=table.table_name, export_name="UsersTable")
         CfnOutput(self, "FoodAppApiKeyOutput", value=api_key.key_id, export_name="FoodAppApiKey")
         CfnOutput(self, "ApiUrlOutput", value=api.url, export_name="ApiUrl")
+
+
   
