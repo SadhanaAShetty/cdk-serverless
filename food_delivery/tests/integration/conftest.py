@@ -12,7 +12,8 @@ def get_stack_outputs(stack_name):
     cf_response = cf_client.describe_stacks(StackName=stack_name)
     outputs = cf_response["Stacks"][0]["Outputs"]
     for output in outputs:
-        result[output["OutputKey"]] = output["OutputValue"]
+        key = output.get("ExportName") or output.get("OutputKey")
+        result[key] = output["OutputValue"]
     return result
 
 
@@ -22,23 +23,20 @@ def create_cognito_accounts():
     idp_client = boto3.client("cognito-idp")
 
     
-    sm_response = sm_client.get_random_password(
-        ExcludeCharacters='"\'`[]{}():;,$/\\<>|=&',
-        RequireEachIncludedType=True,
-    )
+    sm_response = sm_client.get_random_password(RequireEachIncludedType=True)
     result["regularUserName"] = "regularUser@example.com"
     result["regularUserPassword"] = sm_response["RandomPassword"]
 
     try:
         idp_client.admin_delete_user(
-            UserPoolId=globalConfig["UserPool"],
+            UserPoolId=globalConfig["UserPoolOutput"],
             Username=result["regularUserName"],
         )
     except idp_client.exceptions.UserNotFoundException:
         print("Regular user hasn’t been created previously")
 
     idp_response = idp_client.sign_up(
-        ClientId=globalConfig["UserPoolClient"],
+        ClientId=globalConfig["UserPoolClientOutput"],
         Username=result["regularUserName"],
         Password=result["regularUserPassword"],
         UserAttributes=[{"Name": "name", "Value": result["regularUserName"]}],
@@ -46,7 +44,7 @@ def create_cognito_accounts():
     result["regularUserSub"] = idp_response["UserSub"]
 
     idp_client.admin_confirm_sign_up(
-        UserPoolId=globalConfig["UserPool"],
+        UserPoolId=globalConfig["UserPoolOutput"],
         Username=result["regularUserName"],
     )
 
@@ -56,30 +54,27 @@ def create_cognito_accounts():
             "USERNAME": result["regularUserName"],
             "PASSWORD": result["regularUserPassword"],
         },
-        ClientId=globalConfig["UserPoolClient"],
+        ClientId=globalConfig["UserPoolClientOutput"],
     )
     result["regularUserIdToken"] = idp_response["AuthenticationResult"]["IdToken"]
     result["regularUserAccessToken"] = idp_response["AuthenticationResult"]["AccessToken"]
     result["regularUserRefreshToken"] = idp_response["AuthenticationResult"]["RefreshToken"]
 
-   
-    sm_response = sm_client.get_random_password(
-        ExcludeCharacters='"\'`[]{}():;,$/\\<>|=&',
-        RequireEachIncludedType=True,
-    )
+    # Admin user
+    sm_response = sm_client.get_random_password(RequireEachIncludedType=True)
     result["adminUserName"] = "adminUser@example.com"
     result["adminUserPassword"] = sm_response["RandomPassword"]
 
     try:
         idp_client.admin_delete_user(
-            UserPoolId=globalConfig["UserPool"],
+            UserPoolId=globalConfig["UserPoolOutput"],
             Username=result["adminUserName"],
         )
     except idp_client.exceptions.UserNotFoundException:
         print("Admin user hasn’t been created previously")
 
     idp_response = idp_client.sign_up(
-        ClientId=globalConfig["UserPoolClient"],
+        ClientId=globalConfig["UserPoolClientOutput"],
         Username=result["adminUserName"],
         Password=result["adminUserPassword"],
         UserAttributes=[{"Name": "name", "Value": result["adminUserName"]}],
@@ -87,15 +82,14 @@ def create_cognito_accounts():
     result["adminUserSub"] = idp_response["UserSub"]
 
     idp_client.admin_confirm_sign_up(
-        UserPoolId=globalConfig["UserPool"],
+        UserPoolId=globalConfig["UserPoolOutput"],
         Username=result["adminUserName"],
     )
 
-  
     idp_client.admin_add_user_to_group(
-        UserPoolId=globalConfig["UserPool"],
+        UserPoolId=globalConfig["UserPoolOutput"],
         Username=result["adminUserName"],
-        GroupName=globalConfig["UserPoolAdminGroupName"],
+        GroupName=globalConfig["UserPoolAdminGroupOutput"],
     )
 
     idp_response = idp_client.initiate_auth(
@@ -104,7 +98,7 @@ def create_cognito_accounts():
             "USERNAME": result["adminUserName"],
             "PASSWORD": result["adminUserPassword"],
         },
-        ClientId=globalConfig["UserPoolClient"],
+        ClientId=globalConfig["UserPoolClientOutput"],
     )
     result["adminUserIdToken"] = idp_response["AuthenticationResult"]["IdToken"]
     result["adminUserAccessToken"] = idp_response["AuthenticationResult"]["AccessToken"]
@@ -116,13 +110,13 @@ def create_cognito_accounts():
 def clear_dynamo_tables():
     db_client = boto3.client("dynamodb")
     db_response = db_client.scan(
-        TableName=globalConfig["UsersTable"],
+        TableName=globalConfig["UsersTableOutput"],
         AttributesToGet=["user_id"],
     )
     for item in db_response["Items"]:
         db_client.delete_item(
-            TableName=globalConfig["UsersTable"],
-            Key={"user_id": {"S": item["user_id"]["S"]}},  
+            TableName=globalConfig["UsersTableOutput"],
+            Key={"user_id": {"S": item["user_id"]["S"]}},
         )
 
 

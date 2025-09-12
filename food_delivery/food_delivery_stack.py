@@ -178,9 +178,10 @@ class FoodDeliveryStack(Stack):
 
 
 
-        CfnOutput(self, "UserPool", value=user_pool.user_pool_id)
-        CfnOutput(self, "UserPoolClient", value=user_pool_client.user_pool_client_id)
-        CfnOutput(self, "UserPoolAdminGroupName", value=group.group_name)
-        CfnOutput(self, "UsersTable", value=table.table_name)
-        CfnOutput(self, "FoodAppApiKey", value=api_key.key_id)
-        CfnOutput(self, "ApiUrl", value=api.url)  
+        CfnOutput(self, "UserPoolOutput", value=user_pool.user_pool_id, export_name="UserPool")
+        CfnOutput(self, "UserPoolClientOutput", value=user_pool_client.user_pool_client_id, export_name="UserPoolClient")
+        CfnOutput(self, "UserPoolAdminGroupOutput", value=group.group_name, export_name="UserPoolAdminGroup")
+        CfnOutput(self, "UsersTableOutput", value=table.table_name, export_name="UsersTable")
+        CfnOutput(self, "FoodAppApiKeyOutput", value=api_key.key_id, export_name="FoodAppApiKey")
+        CfnOutput(self, "ApiUrlOutput", value=api.url, export_name="ApiUrl")
+  
