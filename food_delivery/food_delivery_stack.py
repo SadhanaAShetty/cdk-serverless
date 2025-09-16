@@ -1,5 +1,5 @@
 from aws_cdk import (
-    Stack, Duration, RemovalPolicy,
+    Stack, Duration, RemovalPolicy, CfnOutput,
     aws_cognito as cognito,
     aws_apigateway as apigw,
     aws_lambda as lmbda,
@@ -27,7 +27,7 @@ class FoodDeliveryStack(Stack):
             "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79",
         )
 
-        # Cognito User Pool
+       
         user_pool = cognito.UserPool(self, "UserPool",
             user_pool_name="food-order-userpool",
             self_sign_up_enabled=True,
@@ -56,7 +56,6 @@ class FoodDeliveryStack(Stack):
             ],
         )
 
-
         domain = cognito.UserPoolDomain(self, "UserPoolDomain",
             user_pool=user_pool,
             cognito_domain=cognito.CognitoDomainOptions(domain_prefix="food-delivery-domain")
@@ -76,13 +75,14 @@ class FoodDeliveryStack(Stack):
             environment={
                 "USER_POOL_ID": user_pool.user_pool_id,
                 "APPLICATION_CLIENT_ID": user_pool_client.user_pool_client_id,
-                "ADMIN_GROUP_NAME": group.group_name
+                "ADMIN_GROUP_NAME": "admin"
             },
             timeout=Duration.seconds(10)
         )
 
         authorizer = apigw.TokenAuthorizer(self, "UserAuthorizer",
-            handler=authorizer_lambda
+            handler=authorizer_lambda,
+            results_cache_ttl=Duration.seconds(0)
         )
 
         # Single Lambda Function for all API Methods
@@ -105,25 +105,61 @@ class FoodDeliveryStack(Stack):
         # API Gateway
         api = apigw.RestApi(self, "FoodDeliveryAPI",
             rest_api_name="FoodDeliveryAPI",
-            description="API for food delivery app"
+            description="API for food delivery app",
+            deploy=False 
         )
 
-        api_key = api.add_api_key("FoodAppAPIKey")
-
-        plan = api.add_usage_plan("UsagePlan",
-            name="FoodAppUsagePlan",
-            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-        )
-
-        plan.add_api_key(api_key)
-
-        # Logs
+        # Create logs
         log_group = logs.LogGroup(self, "FoodDeliveryLogs",
             retention=logs.RetentionDays.ONE_DAY
         )
 
+        
+        users = api.root.add_resource("users")
+
+        users.add_method(
+            "POST",
+            apigw.LambdaIntegration(user_lambda),
+            authorization_type=apigw.AuthorizationType.CUSTOM,
+            authorizer=authorizer,
+        )
+
+        users.add_method(
+            "GET",
+            apigw.LambdaIntegration(user_lambda),
+            authorization_type=apigw.AuthorizationType.CUSTOM,
+            authorizer=authorizer,
+        )
+
+        user_id = users.add_resource("{userid}")
+
+        user_id.add_method(
+            "GET",
+            apigw.LambdaIntegration(user_lambda),
+            authorization_type=apigw.AuthorizationType.CUSTOM,
+            authorizer=authorizer,
+        )
+
+        user_id.add_method(
+            "PUT",
+            apigw.LambdaIntegration(user_lambda),
+            authorization_type=apigw.AuthorizationType.CUSTOM,
+            authorizer=authorizer,
+        )
+
+        user_id.add_method(
+            "DELETE",
+            apigw.LambdaIntegration(user_lambda),
+            authorization_type=apigw.AuthorizationType.CUSTOM,
+            authorizer=authorizer,
+        )
+
+        
+        deployment = apigw.Deployment(self, "Deployment", api=api)
+
+        
         stage = apigw.Stage(self, "DevStage",
-            deployment=apigw.Deployment(self, "Deployment", api=api),
+            deployment=deployment,
             stage_name="dev",
             access_log_destination=apigw.LogGroupLogDestination(log_group),
             access_log_format=apigw.AccessLogFormat.json_with_standard_fields(
@@ -139,40 +175,15 @@ class FoodDeliveryStack(Stack):
             ),
         )
 
+       
         api.deployment_stage = stage
 
-        users = api.root.add_resource("users")
-        get_users = users.add_method("GET", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
-        post_users = users.add_method("POST", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
 
-        user_id = users.add_resource("{userid}")
-        get_user_id = user_id.add_method("GET", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
-        put_user_id = user_id.add_method("PUT", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
-        delete_user_id = user_id.add_method("DELETE", apigw.LambdaIntegration(user_lambda), api_key_required=True, authorizer=authorizer)
+        CfnOutput(self, "UserPoolOutput", value=user_pool.user_pool_id, export_name="UserPool")
+        CfnOutput(self, "UserPoolClientOutput", value=user_pool_client.user_pool_client_id, export_name="UserPoolClient")
+        CfnOutput(self, "UserPoolAdminGroupOutput", value=group.group_name, export_name="UserPoolAdminGroup")
+        CfnOutput(self, "UsersTableOutput", value=table.table_name, export_name="UsersTable")
+        CfnOutput(self, "ApiUrlOutput", value=api.url, export_name="ApiUrl")
 
-        plan.add_api_stage(
-        stage=stage,
-        throttle=[
-            apigw.ThrottlingPerMethod(
-                method=get_users,
-                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-            ),
-            apigw.ThrottlingPerMethod(
-                method=post_users,
-                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-            ),
-            apigw.ThrottlingPerMethod(
-                method=get_user_id,
-                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-            ),
-            apigw.ThrottlingPerMethod(
-                method=put_user_id,
-                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-            ),
-            apigw.ThrottlingPerMethod(
-                method=delete_user_id,
-                throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2)
-            ),
-        ]
-    )
-        
+
+  
