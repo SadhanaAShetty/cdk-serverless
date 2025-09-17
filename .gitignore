@@ -49,3 +49,7 @@ service_clean.yaml
 # Lambda layer construct: ignore requirements.txt and build artifacts
 
 tmp*/*
+
+#ignore deploy.yml
+.github/*
+
