@@ -64,7 +64,7 @@ def put_data_dynamodb():
 
 
 # test: get list of all users
-@pytest.mark.skip("skip")
+# @pytest.mark.skip("skip")
 @patch.dict(os.environ, {"TABLE_NAME": USERS_MOCK_TABLE_NAME, "AWS_XRAY_CONTEXT_MISSING": "LOG_ERROR"})
 def test_get_list_of_users():
     with my_test_environment():
@@ -95,7 +95,7 @@ def test_get_list_of_users():
 
 
 # test: get single user by ID
-@pytest.mark.skip("skip")
+# @pytest.mark.skip("skip")
 @patch.dict(os.environ, {"TABLE_NAME": USERS_MOCK_TABLE_NAME, "AWS_XRAY_CONTEXT_MISSING": "LOG_ERROR"})
 def test_get_single_user():
     with my_test_environment():
@@ -119,7 +119,7 @@ def test_get_single_user():
 
 
 # test: create new user
-@pytest.mark.skip("skip")
+# @pytest.mark.skip("skip")
 @patch("uuid.uuid4", mock_uuid)
 @patch("uuid.uuid1", mock_uuid)
 @patch.dict(os.environ, {"TABLE_NAME": USERS_MOCK_TABLE_NAME, "AWS_XRAY_CONTEXT_MISSING": "LOG_ERROR"})
