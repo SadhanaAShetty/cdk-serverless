@@ -111,7 +111,9 @@ class FoodDeliveryStack(Stack):
 
         # Create logs
         log_group = logs.LogGroup(self, "FoodDeliveryLogs",
-            retention=logs.RetentionDays.ONE_DAY
+            log_group_name="apigw/FoodDeliveryLogs",
+            retention=logs.RetentionDays.ONE_DAY,
+            removal_policy=RemovalPolicy.DESTROY
         )
 
         
@@ -173,6 +175,9 @@ class FoodDeliveryStack(Stack):
                 status=True,
                 user=True,
             ),
+            logging=apigw.MethodLoggingLevel.INFO,
+            data_trace_enabled=True, 
+            metrics_enabled=True
         )
 
        
