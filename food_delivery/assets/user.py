@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 from decimal import Decimal
 import boto3
+from botocore.exceptions import ClientError
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 from aws_lambda_powertools.utilities.typing import LambdaContext
@@ -183,7 +184,7 @@ def create_order(user_id: str):
             "totalAmount": total_amount,
             "orderItems": order_items,
             "status": "PLACED",
-            "orderTime": order_time,
+            "order_time": order_time,
         },
     }
     ddb_item = json.loads(json.dumps(ddb_item), parse_float=Decimal)
@@ -194,9 +195,8 @@ def create_order(user_id: str):
             ConditionExpression="attribute_not_exists(orderId) AND attribute_not_exists(userId)"
         )
 
-       
-        data["orderId"] = order_id
-        data["orderTime"] = order_time
+        data["order_id"] = order_id
+        data["order_time"] = order_time
         data["status"] = "PLACED"
 
         return {
@@ -215,61 +215,64 @@ def create_order(user_id: str):
 @tracer.capture_method
 @app.put("/orders/{user_id}/{order_id}")
 def update_order(user_id: str, order_id: str):
-    data: dict = app.current_event.json_body
-    
-    if not data:
-        return {"statusCode": 400, "body": json.dumps({"error": "Request body is empty"})}
-    
-    try:
-        existing_response = table.get_item(
-            Key={
-                "userId": user_id,
-                "orderId": order_id
-            }
-        )
-        if "Item" not in existing_response:
-            return {"statusCode": 404, "body": json.dumps({"error": "Order not found"})}
-        
-        existing_order = existing_response["Item"]
-        
-        updatable_fields = [
-            "customer_name", "customer_email", "items", "status", 
-            "delivery_address", "special_instructions"
-        ]
-        
-        updated_order = existing_order.copy()
-        
-        for field in updatable_fields:
-            if field in data:
-                updated_order[field] = data[field]
-        
- 
-        if "items" in data:
-            if not isinstance(data["items"], list) or len(data["items"]) == 0:
-                return {"statusCode": 400, "body": json.dumps({"error": "Items must be a non-empty array"})}
-            
-            try:
-                total_amount = sum(float(item["price"]) * int(item["quantity"]) for item in data["items"])
-                updated_order["total_amount"] = round(total_amount, 2)
-            except (ValueError, TypeError, KeyError):
-                return {"statusCode": 400, "body": json.dumps({"error": "Invalid items format or values"})}
-        
-        updated_order["updated_at"] = datetime.utcnow().isoformat()
-        
+    data = app.current_event.json_body
 
-        table.put_item(Item=updated_order)
-        
+
+    data["userId"] = user_id
+    data["orderId"] = order_id
+
+    ddb_item = {
+        "orderId": order_id,
+        "userId": user_id,
+        "data": data
+    }
+    ddb_item = json.loads(json.dumps(ddb_item), parse_float=Decimal)
+
+    try:
+        table.put_item(
+            Item=ddb_item,
+            ConditionExpression="attribute_exists(order_id) AND attribute_exists(user_id) AND #data.#status = :status",
+            ExpressionAttributeNames={
+                "data": "data",
+                "status": "status"
+            },
+            ExpressionAttributeValues={
+                ":status": "PLACED"
+            },
+            ReturnValuesOnConditionCheckFailure="ALL_OLD"
+        )
+
+        logger.info(f"Order {order_id} updated successfully for user {user_id}")
+
         return {
             "statusCode": 200,
             "body": json.dumps({
                 "message": "Order updated successfully",
-                "order": updated_order
+                "order": data
             })
         }
-    except Exception as e:
-        logger.error(f"Error updating order {order_id} for user {user_id}: {str(e)}")
-        return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
 
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            return {
+                "statusCode": 400,
+                "body": json.dumps({
+                    "error": f"Cannot edit Order {order_id}. Please check if it exists and status is PLACED."
+                })
+            }
+        else:
+            logger.error(f"DynamoDB error: {exc}")
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": "Internal Server Error"})
+            }
+
+    except Exception as e:
+        logger.error(f"Unexpected error updating order {order_id}: {e}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal Server Error"})
+        }
 
 @tracer.capture_method
 @app.delete("/orders/{user_id}/{order_id}")
