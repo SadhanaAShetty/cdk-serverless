@@ -2,13 +2,13 @@ import os
 import uuid
 import json
 from datetime import datetime
-from typing import List, Dict, Any
 from decimal import Decimal
 import boto3
 from botocore.exceptions import ClientError
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 from aws_lambda_powertools.utilities.typing import LambdaContext
+
 
 logger = Logger()
 tracer = Tracer()
@@ -18,61 +18,64 @@ dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
 
 
-
 @tracer.capture_method
 @app.post("/orders/{user_id}")
 def create_order(user_id: str):
-    data = app.current_event.json_body
-
-    required = ["restaurantId", "totalAmount", "orderItems"]
-    for field in required:
-        if field not in data:
+    data: dict = app.current_event.json_body
+    
+    if "user_id" not in data:
+        data["user_id"] = str(uuid.uuid1())
+   
+    required_keys = ["restaurantId", "totalAmount", "orderItems"]
+    for key in required_keys:
+        if key not in data:
             return {
-                "statusCode": 400,
-                "body": json.dumps({"error": f"Missing field: {field}"})
+                "statusCode": 400, 
+                "body": json.dumps({"error": f"Missing key: {key}"})
             }
 
 
-    restaurant_id = data["restaurantId"]
-    total_amount = data["totalAmount"]
-    order_items = data["orderItems"]
-    order_id = data.get("orderId", str(uuid.uuid4()))
     order_time = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    ddb_item = {
-        "orderId": order_id,
+    item_to_store = {
         "userId": user_id,
-        "data": {
-            "orderId": order_id,
-            "userId": user_id,
-            "restaurantId": restaurant_id,
-            "totalAmount": total_amount,
-            "orderItems": order_items,
-            "status": "PLACED",
-            "order_time": order_time,
-        },
+        "orderId": str(uuid.uuid1()),
+        "restaurantId": data["restaurantId"],
+        "totalAmount": data["totalAmount"],
+        "orderItems": data["orderItems"],
+        "status": "PLACED",
+        "orderTime": order_time,
     }
-    ddb_item = json.loads(json.dumps(ddb_item), parse_float=Decimal)
 
     try:
         table.put_item(
-            Item=ddb_item,
+            Item=item_to_store,
             ConditionExpression="attribute_not_exists(orderId) AND attribute_not_exists(userId)"
         )
-
-        data["order_id"] = order_id
-        data["order_time"] = order_time
-        data["status"] = "PLACED"
-
+        print("Your order is successfully placed!")
         return {
             "statusCode": 200,
-            "body": json.dumps(data)
+            "body": json.dumps({
+                "user_id": item_to_store["user_id"],
+                "order_id": item_to_store["order_id"],
+                "timestamp": item_to_store["time_stamp"]
+            })
         }
+
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            return {
+                "statusCode": 409,
+                "body": json.dumps({"error": "Order already exists"})
+            }
+        raise
+
     except Exception as e:
-        logger.error(f"Error creating order: {e}")
+        logger.error(f"Error creating user: {str(e)}")
         return {
             "statusCode": 500,
             "body": json.dumps({"error": "Internal Server Error"})
         }
-
-
+def lambda_handler(event: dict, context):
+    print("DEBUG incoming event:", json.dumps(event))
+    return app.resolve(event, context)

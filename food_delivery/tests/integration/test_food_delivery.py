@@ -3,14 +3,23 @@ import pytest
 import requests
 import json
 import jwt
+import uuid
 
 new_user_id = ""
-new_user = {
-    "user_id": "test-user-001",
-    "name": "John Doe",
-    "email": "john.doe@example.com",
-    "role": "regular"
-}
+new_user =  {
+      "restaurantId": 200,
+      "orderId": str(uuid.uuid4()),
+      "orderItems": [
+          {
+              "name": "Pasta Carbonara",
+              "price": 14.99,
+              "id": 123,
+              "quantity": 1
+          }
+      ],
+      "totalAmount": 14.99
+  }
+
 
 def auth_header(token):
     return {

@@ -1,14 +1,9 @@
 import os
-import uuid
 import json
-from datetime import datetime
-from typing import List, Dict, Any
-from decimal import Decimal
 import boto3
-from botocore.exceptions import ClientError
+from boto3.dynamodb.conditions import Key
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
-from aws_lambda_powertools.utilities.typing import LambdaContext
 
 logger = Logger()
 tracer = Tracer()
@@ -19,29 +14,29 @@ table = dynamodb.Table(os.environ["TABLE_NAME"])
 
 
 @tracer.capture_method
-@app.get("/orders/{user_id}")
-def get_user_orders(user_id: str):
+@app.get("/orders")
+def list_orders():
+    event = app.current_event.request
+    user_id = event["requestContext"]["authorizer"]["claims"]["sub"]
+
     try:
         response = table.query(
-            KeyConditionExpression=boto3.dynamodb.conditions.Key('user_id').Key('order_id')
+            KeyConditionExpression=Key("userId").eq(user_id)
         )
-        
-        orders = []
-        for item in response.get("Items", []):
-            orders.append(item['data'])
-
+        orders = [item["data"] for item in response.get("Items", [])]
+        logger.info(f"Retrieved {len(orders)} orders for user {user_id}")
         return {
             "statusCode": 200,
-            "body": json.dumps({
-                "orders": orders,
-                "count": len(orders),
-                "userId": user_id
-            })
+            "body": json.dumps({"orders": orders}, default=str)
         }
+
     except Exception as e:
-        logger.error(f"Error querying orders for user {user_id}: {str(e)}")
-        return {"statusCode": 500, "body": json.dumps({"error": "Internal Server Error"})}
-    
-def lambda_handler(event: dict, context):
-    logger.info("Processing order management request", extra={"event": event})
+        logger.exception(f"Error listing orders for user {user_id}: {e}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal Server Error"})
+        }
+
+
+def lambda_handler(event, context):
     return app.resolve(event, context)
