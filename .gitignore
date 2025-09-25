@@ -51,5 +51,4 @@ service_clean.yaml
 tmp*/*
 
 #ignore deploy.yml
-.github/*
-
+.github/workflows/deploy.yml
