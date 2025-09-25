@@ -14,19 +14,19 @@ app = APIGatewayRestResolver()
 @app.get("/orders/{orderId}")
 def get_order_handler():
     event = app.current_event.request
-    user_id = event["requestContext"]["authorizer"]["claims"]["sub"]
-    order_id = event["pathParameters"]["orderId"]
+    userId = event["requestContext"]["authorizer"]["claims"]["sub"]
+    orderId = event["pathParameters"]["orderId"]
 
     try:
-        order = get_order(user_id, order_id)
-        logger.info(f"Retrieved order {order_id} for user {user_id}")
+        order = get_order(userId, orderId)
+        logger.info(f"Retrieved order {orderId} for user {userId}")
         return {
             "statusCode": 200,
             "body": json.dumps(order, default=str)
         }
 
     except Exception as e:
-        logger.exception(f"Error retrieving order {order_id} for user {user_id}: {e}")
+        logger.exception(f"Error retrieving order {orderId} for user {userId}: {e}")
         return {
             "statusCode": 500,
             "body": json.dumps({"error": "Internal Server Error"})

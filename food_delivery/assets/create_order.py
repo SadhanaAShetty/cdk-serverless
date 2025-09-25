@@ -19,12 +19,12 @@ table = dynamodb.Table(os.environ["TABLE_NAME"])
 
 
 @tracer.capture_method
-@app.post("/orders/{user_id}")
-def create_order(user_id: str):
+@app.post("/orders/{userId}")
+def create_order(userId: str):
     data: dict = app.current_event.json_body
     
-    if "user_id" not in data:
-        data["user_id"] = str(uuid.uuid1())
+    if "userId" not in data:
+        data["userId"] = str(uuid.uuid1())
    
     required_keys = ["restaurantId", "totalAmount", "orderItems"]
     for key in required_keys:
@@ -38,7 +38,7 @@ def create_order(user_id: str):
     order_time = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
     item_to_store = {
-        "userId": user_id,
+        "userId": userId,
         "orderId": str(uuid.uuid1()),
         "restaurantId": data["restaurantId"],
         "totalAmount": data["totalAmount"],
@@ -56,8 +56,8 @@ def create_order(user_id: str):
         return {
             "statusCode": 200,
             "body": json.dumps({
-                "user_id": item_to_store["user_id"],
-                "order_id": item_to_store["order_id"],
+                "userId": item_to_store["userId"],
+                "orderId": item_to_store["orderId"],
                 "timestamp": item_to_store["time_stamp"]
             })
         }
@@ -76,6 +76,8 @@ def create_order(user_id: str):
             "statusCode": 500,
             "body": json.dumps({"error": "Internal Server Error"})
         }
+
+
 def lambda_handler(event: dict, context):
     print("DEBUG incoming event:", json.dumps(event))
     return app.resolve(event, context)

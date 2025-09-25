@@ -21,35 +21,42 @@ table = dynamodb.Table(os.environ["TABLE_NAME"])
 
 @tracer.capture_method
 @app.post("/orders/cancel/{orderId}")
-def cancel_order():
-    event = app.current_event.request
-    user_id = event["requestContext"]["authorizer"]["claims"]["sub"]
-    order_id = event["pathParameters"]["orderId"]
+def cancel_order(orderId: str): 
+    userId = app.current_event.request_context.authorizer.claims.get("sub")
+    
+    if not userId:
+        return {
+            "statusCode": 401,
+            "body": json.dumps({"error": "User not authenticated"})
+        }
 
     current_time = time.time()
 
     try:
         response = table.update_item(
-            Key={"userId": user_id, "orderId": order_id},
-            UpdateExpression="set #data.#status = :new_status",
-            ConditionExpression="(#data.#status = :current_status) AND (#data.orderTime > :minOrderTime)",
+            Key={"userId": userId, "orderId": orderId},
+            UpdateExpression="SET #status = :new_status, canceledAt = :canceled_time",
+            ConditionExpression="(#status = :current_status) AND (orderTime > :minOrderTime)",
             ExpressionAttributeNames={
-                "#data": "data",
                 "#status": "status"
             },
             ExpressionAttributeValues={
                 ":current_status": "PLACED",
                 ":new_status": "CANCELED",
-                ":minOrderTime": str(current_time - 600) 
+                ":minOrderTime": current_time - 600, 
+                ":canceled_time": datetime.utcnow().isoformat()
             },
             ReturnValues="ALL_NEW"
         )
-        logger.info(f"Order {order_id} for user {user_id} successfully canceled.")
-        print(f"Order {order_id} successfully canceled!")
+        
+        logger.info(f"Order {orderId} for user {userId} successfully canceled.")
 
         return {
             "statusCode": 200,
-            "body": json.dumps(response["Attributes"]["data"])
+            "body": json.dumps({
+                "message": f"Order {orderId} successfully canceled",
+                "order": response["Attributes"]
+            }, default=str) 
         }
 
     except ClientError as e:
@@ -57,7 +64,7 @@ def cancel_order():
             return {
                 "statusCode": 400,
                 "body": json.dumps({
-                    "error": f"Order {order_id} cannot be canceled. Status must be PLACED and within 10 minutes of creation."
+                    "error": f"Order {orderId} cannot be canceled. Status must be PLACED and within 10 minutes of creation."
                 })
             }
         logger.exception(f"DynamoDB ClientError: {e}")

@@ -17,26 +17,25 @@ table = dynamodb.Table(os.environ["TABLE_NAME"])
 @app.get("/orders")
 def list_orders():
     event = app.current_event.request
-    user_id = event["requestContext"]["authorizer"]["claims"]["sub"]
+    userId = event["requestContext"]["authorizer"]["claims"]["sub"]
 
     try:
         response = table.query(
-            KeyConditionExpression=Key("userId").eq(user_id)
+            KeyConditionExpression=Key("userId").eq(userId)
         )
         orders = [item["data"] for item in response.get("Items", [])]
-        logger.info(f"Retrieved {len(orders)} orders for user {user_id}")
+        logger.info(f"Retrieved {len(orders)} orders for user {userId}")
         return {
             "statusCode": 200,
             "body": json.dumps({"orders": orders}, default=str)
         }
 
     except Exception as e:
-        logger.exception(f"Error listing orders for user {user_id}: {e}")
+        logger.exception(f"Error listing orders for user {userId}: {e}")
         return {
             "statusCode": 500,
             "body": json.dumps({"error": "Internal Server Error"})
         }
-
 
 def lambda_handler(event, context):
     return app.resolve(event, context)
