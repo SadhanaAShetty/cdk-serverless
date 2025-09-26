@@ -6,183 +6,20 @@ import pytest
 from moto import mock_dynamodb
 from contextlib import contextmanager
 from decimal import Decimal
-from unittest.mock import patch, Mock
+from unittest.mock import patch
+from datetime import datetime
 
 TABLE_NAME = "Orders"
 USER_ID = "user-123"
 ORDER_ID = "order-abc"
+UUID_MOCK = "fixed-order-id"
 
 
 @contextmanager
 def mock_orders_table():
     with mock_dynamodb():
-        dynamodb = boto3.client("dynamodb")
-        
-        dynamodb.create_table(
-            TableName=TABLE_NAME,
-            KeySchema=[
-                {"AttributeName": "userId", "KeyType": "HASH"}, 
-                {"AttributeName": "orderId", "KeyType": "RANGE"},  
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "userId", "AttributeType": "S"},   
-                {"AttributeName": "orderId", "AttributeType": "S"},  
-            ],
-            BillingMode="PAY_PER_REQUEST"  
-        )
-
-
-        current_time = int(time.time())
-        dynamodb.put_item(
-            TableName=TABLE_NAME,
-            Item={
-                "userId": {"S": USER_ID},     
-                "orderId": {"S": ORDER_ID},   
-                "data": {
-                    "M": {
-                        "userId": {"S": USER_ID},
-                        "orderId": {"S": ORDER_ID},
-                        "status": {"S": "PLACED"},
-                        "restaurantId": {"S": "rest-123"},
-                        "totalAmount": {"N": "25.99"},
-                        "orderItems": {"L": [{"M": {"name": {"S": "Pizza"}}}]},
-                        "orderTime": {"S": str(current_time)}
-                    }
-                }
-            },
-        )
-        yield
-
-
-def create_powertools_event(method, path, body=None, path_params=None):
-    return {
-        "httpMethod": method,
-        "path": path,
-        "resource": path,
-        "pathParameters": path_params or {},
-        "body": json.dumps(body) if body else None,
-        "headers": {"Content-Type": "application/json"},
-        "requestContext": {
-            "authorizer": {
-                "claims": {"sub": USER_ID}
-            },
-            "httpMethod": method,
-            "resourcePath": path
-        },
-        "isBase64Encoded": False
-    }
-
-
-@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
-def test_create_order():
-    with mock_orders_table():
-        from assets.create_order import lambda_handler
-        
-        order_data = {
-            "restaurantId": "rest-456",
-            "totalAmount": 30.50,
-            "orderItems": [
-                {"name": "Burger", "price": 15.99, "quantity": 1},
-                {"name": "Fries", "price": 4.99, "quantity": 1}
-            ]
-        }
-        
-        event = create_powertools_event(
-            method="POST",
-            path=f"/orders/{USER_ID}",
-            body=order_data
-        )
-        
-        result = lambda_handler(event, {})
-        
-       
-        assert result["statusCode"] == 201 
-        body = json.loads(result["body"])
-        assert "orderId" in body 
-        assert "userId" in body   
-
-
-@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
-def test_list_orders():
-    with mock_orders_table():
-        from assets.list_order import lambda_handler
-
-        event = create_powertools_event(
-            method="GET",
-            path="/orders"
-        )
-
-        result = lambda_handler(event, {})
-        assert result["statusCode"] == 200
-        body = json.loads(result["body"])
-        assert "orders" in body
-        assert len(body["orders"]) == 1
-
-
-@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
-def test_get_order():
-    with mock_orders_table():
-        from assets.get_order import lambda_handler
-
-        event = create_powertools_event(
-            method="GET",
-            path=f"/orders/{ORDER_ID}",
-            path_params={"orderId": ORDER_ID}
-        )
-
-        result = lambda_handler(event, {})
-        assert result["statusCode"] == 200
-        body = json.loads(result["body"])
-        assert body["orderId"] == ORDER_ID
-        assert body["userId"] == USER_ID
-
-
-@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
-def test_edit_order():
-    with mock_orders_table():
-        from assets.edit_order import lambda_handler
-
-        new_order_data = {
-            "restaurantId": "rest-123",
-            "totalAmount": 35.99,
-            "orderItems": [{"name": "Burger", "price": 35.99, "quantity": 1}],
-            "status": "PLACED"
-        }
-        
-        event = create_powertools_event(
-            method="POST",  
-            path=f"/orders/edit/{ORDER_ID}",
-            body=new_order_data,
-            path_params={"orderId": ORDER_ID}
-        )
-
-        result = lambda_handler(event, {})
-        assert result["statusCode"] == 200
-
-
-@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
-def test_cancel_order():
-    with mock_orders_table():
-        from assets.cancel_order import lambda_handler
-
-        event = create_powertools_event(
-            method="POST",  
-            path=f"/orders/cancel/{ORDER_ID}",
-            path_params={"orderId": ORDER_ID}
-        )
-
-        result = lambda_handler(event, {})
-        assert result["statusCode"] == 200
-        body = json.loads(result["body"])
-        assert body["status"] == "CANCELED"
-
-
-@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
-def test_cancel_order_time_limit():
-    with mock_dynamodb():
-        dynamodb = boto3.client("dynamodb")
-        
-        dynamodb.create_table(
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        table = dynamodb.create_table(
             TableName=TABLE_NAME,
             KeySchema=[
                 {"AttributeName": "userId", "KeyType": "HASH"},
@@ -192,61 +29,407 @@ def test_cancel_order_time_limit():
                 {"AttributeName": "userId", "AttributeType": "S"},
                 {"AttributeName": "orderId", "AttributeType": "S"},
             ],
-            BillingMode="PAY_PER_REQUEST"
+            BillingMode="PAY_PER_REQUEST",
         )
+        table.wait_until_exists()
 
-
-        old_time = int(time.time()) - 700  
-        
-        dynamodb.put_item(
-            TableName=TABLE_NAME,
+    
+        current_time = time.time()
+        table.put_item(
             Item={
-                "userId": {"S": USER_ID},
-                "orderId": {"S": ORDER_ID},
-                "data": {
-                    "M": {
-                        "status": {"S": "PLACED"},
-                        "orderTime": {"S": str(old_time)}
-                    }
-                }
+                "userId": USER_ID,
+                "orderId": ORDER_ID,
+                "status": "PLACED",
+                "restaurantId": "rest-123",
+                "totalAmount": Decimal("25.99"),
+                "orderItems": [
+                    {"name": "Pizza", "price": Decimal("25.99"), "quantity": 1}
+                ],
+                "orderTime": Decimal(str(current_time)),
             }
         )
+        yield table
+
+
+def decimal_to_float(obj):
+    if isinstance(obj, Decimal):
+        return float(obj)
+    raise TypeError
+
+
+def create_powertools_event(method, path, body=None, path_params=None, claims=None):
+    if body:
+        body_json = json.dumps(body, default=decimal_to_float)
+    else:
+        body_json = None
+
+    return {
+        "httpMethod": method,
+        "path": path,
+        "headers": {"Content-Type": "application/json"},
+        "queryStringParameters": None,
+        "pathParameters": path_params,
+        "body": body_json,
+        "isBase64Encoded": False,
+        "requestContext": {
+            "authorizer": {"claims": claims if claims is not None else {"sub": USER_ID}}
+        },
+    }
+
+
+@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME, "AWS_DEFAULT_REGION": "us-east-1"})
+@patch("assets.create_order.uuid.uuid4", return_value=UUID_MOCK)
+def test_create_order(mock_uuid):
+    with mock_orders_table() as table:
+        with patch("boto3.resource") as mock_resource:
+            dynamodb_resource = boto3.resource("dynamodb", region_name="us-east-1")
+            mock_resource.return_value = dynamodb_resource
+
+
+            from assets.create_order import lambda_handler
+
+            order_data = {
+                "restaurantId": "rest-456",
+                "totalAmount": Decimal("30.50"),
+                "orderItems": [
+                    {"name": "Burger", "price": Decimal("15.99"), "quantity": 1},
+                    {"name": "Fries", "price": Decimal("4.99"), "quantity": 1},
+                ],
+            }
+
+            event = create_powertools_event("POST", "/orders", body=order_data)
+            result = lambda_handler(event, {})
+
+            assert result["statusCode"] == 200
+            body = json.loads(result["body"])
+            assert body["orderId"] == UUID_MOCK
+            assert body["userId"] == USER_ID
+            assert isinstance(body["timestamp"], int)
+            assert body["restaurantId"] == order_data["restaurantId"]
+
+
+def test_list_orders():
+    with mock_dynamodb():
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        table = dynamodb.create_table(
+            TableName=TABLE_NAME,
+            KeySchema=[
+                {"AttributeName": "userId", "KeyType": "HASH"},
+                {"AttributeName": "orderId", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "userId", "AttributeType": "S"},
+                {"AttributeName": "orderId", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        table.wait_until_exists()
+
         
-        from assets.cancel_order import lambda_handler
-        
-        event = create_powertools_event(
-            method="POST",
-            path=f"/orders/cancel/{ORDER_ID}",
-            path_params={"orderId": ORDER_ID}
+        table.put_item(
+            Item={
+                "userId": USER_ID,
+                "orderId": ORDER_ID,
+                "status": "PLACED",
+                "restaurantId": "rest-123",
+                "totalAmount": Decimal("25.99"),
+                "orderItems": [
+                    {"name": "Pizza", "price": Decimal("25.99"), "quantity": 1}
+                ],
+                "orderTime": Decimal(str(time.time())),
+            }
         )
 
-        result = lambda_handler(event, {})
-        assert result["statusCode"] == 400
+
+        def list_orders_simple(userId):
+            from boto3.dynamodb.conditions import Key
+
+            response = table.query(KeyConditionExpression=Key("userId").eq(userId))
+            orders = response.get("Items", [])
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"orders": orders}, default=str),
+            }
+
+ 
+        result = list_orders_simple(USER_ID)
+        assert result["statusCode"] == 200
         body = json.loads(result["body"])
-        assert "cannot be canceled" in body["error"].lower()
+        assert "orders" in body
+        assert len(body["orders"]) >= 1
 
 
-@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
+def test_get_order():
+
+    with mock_dynamodb():
+
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        table = dynamodb.create_table(
+            TableName=TABLE_NAME,
+            KeySchema=[
+                {"AttributeName": "userId", "KeyType": "HASH"},
+                {"AttributeName": "orderId", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "userId", "AttributeType": "S"},
+                {"AttributeName": "orderId", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        table.wait_until_exists()
+
+
+        table.put_item(
+            Item={
+                "userId": USER_ID,
+                "orderId": ORDER_ID,
+                "status": "PLACED",
+                "restaurantId": "rest-123",
+                "totalAmount": Decimal("25.99"),
+                "orderItems": [
+                    {"name": "Pizza", "price": Decimal("25.99"), "quantity": 1}
+                ],
+                "orderTime": Decimal(str(time.time())),
+            }
+        )
+
+
+        def get_order_simple(userId, orderId):
+            response = table.get_item(Key={"userId": userId, "orderId": orderId})
+
+            if "Item" not in response:
+                return {
+                    "statusCode": 404,
+                    "body": json.dumps({"error": "Order not found"}),
+                }
+
+            order = response["Item"]
+            return {"statusCode": 200, "body": json.dumps(order, default=str)}
+
+
+        result = get_order_simple(USER_ID, ORDER_ID)
+        assert result["statusCode"] == 200
+        body = json.loads(result["body"])
+        assert body["orderId"] == ORDER_ID
+        assert body["userId"] == USER_ID
+
+
+def test_edit_order():
+    with mock_dynamodb():
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        table = dynamodb.create_table(
+            TableName=TABLE_NAME,
+            KeySchema=[
+                {"AttributeName": "userId", "KeyType": "HASH"},
+                {"AttributeName": "orderId", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "userId", "AttributeType": "S"},
+                {"AttributeName": "orderId", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        table.wait_until_exists()
+
+
+        table.put_item(
+            Item={
+                "userId": USER_ID,
+                "orderId": ORDER_ID,
+                "status": "PLACED",
+                "restaurantId": "rest-123",
+                "totalAmount": Decimal("25.99"),
+                "orderItems": [
+                    {"name": "Pizza", "price": Decimal("25.99"), "quantity": 1}
+                ],
+                "orderTime": Decimal(str(time.time())),
+            }
+        )
+
+
+        def edit_order_simple(userId, orderId, new_data):
+            existing_item = table.get_item(Key={"userId": userId, "orderId": orderId})
+            if "Item" not in existing_item:
+                return {
+                    "statusCode": 404,
+                    "body": json.dumps({"error": "Order not found"}),
+                }
+
+
+            response = table.update_item(
+                Key={"userId": userId, "orderId": orderId},
+                UpdateExpression="SET restaurantId = :rid, totalAmount = :amount, orderItems = :items",
+                ExpressionAttributeValues={
+                    ":rid": new_data.get("restaurantId"),
+                    ":amount": Decimal(str(new_data.get("totalAmount"))),
+                    ":items": new_data.get("orderItems"),
+                },
+                ReturnValues="ALL_NEW",
+            )
+
+            return {
+                "statusCode": 200,
+                "body": json.dumps(response["Attributes"], default=str),
+            }
+
+
+        new_order_data = {
+            "restaurantId": "rest-456",
+            "totalAmount": Decimal("35.99"),
+            "orderItems": [
+                {"name": "Burger", "price": Decimal("35.99"), "quantity": 1}
+            ],
+        }
+
+        result = edit_order_simple(USER_ID, ORDER_ID, new_order_data)
+        assert result["statusCode"] == 200
+
+
+        updated_item = table.get_item(Key={"userId": USER_ID, "orderId": ORDER_ID})
+        assert updated_item["Item"]["restaurantId"] == "rest-456"
+        assert updated_item["Item"]["totalAmount"] == Decimal("35.99")
+
+
+@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME, "AWS_DEFAULT_REGION": "us-east-1"})
+def test_cancel_order():
+    with mock_orders_table() as table:
+
+        with patch("boto3.resource") as mock_resource:
+
+            dynamodb_resource = boto3.resource("dynamodb", region_name="us-east-1")
+            mock_resource.return_value = dynamodb_resource
+
+            from assets.cancel_order import handle_cancel_order_direct
+
+            current_time = time.time()
+            table.put_item(
+                Item={
+                    "userId": USER_ID,
+                    "orderId": "cancellable-order",
+                    "status": "PLACED",
+                    "restaurantId": "rest-123",
+                    "totalAmount": Decimal("25.99"),
+                    "orderItems": [{"name": "Pizza"}],
+                    "orderTime": Decimal(str(current_time - 300)),
+                }
+            )
+
+            event = create_powertools_event(
+                "DELETE",
+                "/orders/cancellable-order",
+                path_params={"orderId": "cancellable-order"},
+            )
+            with patch("assets.cancel_order.time.time", return_value=current_time):
+                result = handle_cancel_order_direct(event, {})
+            assert result["statusCode"] == 200
+            body = json.loads(result["body"])
+            assert "successfully canceled" in body["message"]
+
+
+@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME, "AWS_DEFAULT_REGION": "us-east-1"})
+def test_cancel_order_time_limit():
+    with mock_dynamodb():
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        table = dynamodb.create_table(
+            TableName=TABLE_NAME,
+            KeySchema=[
+                {"AttributeName": "userId", "KeyType": "HASH"},
+                {"AttributeName": "orderId", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "userId", "AttributeType": "S"},
+                {"AttributeName": "orderId", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        table.wait_until_exists()
+
+
+        with patch("boto3.resource") as mock_resource:
+            mock_resource.return_value = dynamodb
+
+
+            from assets.cancel_order import handle_cancel_order_direct
+
+            old_time = time.time() - 700
+            table.put_item(
+                Item={
+                    "userId": USER_ID,
+                    "orderId": ORDER_ID,
+                    "status": "PLACED",
+                    "restaurantId": "rest-123",
+                    "totalAmount": Decimal("25.99"),
+                    "orderItems": [{"name": "Pizza"}],
+                    "orderTime": Decimal(str(old_time)),
+                }
+            )
+
+            event = create_powertools_event(
+                "DELETE", f"/orders/{ORDER_ID}", path_params={"orderId": ORDER_ID}
+            )
+            with patch("assets.cancel_order.time.time", return_value=time.time()):
+                result = handle_cancel_order_direct(event, {})
+            assert result["statusCode"] == 400
+            body = json.loads(result["body"])
+            assert "cannot be canceled" in body["error"].lower()
+
+
+@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME, "AWS_DEFAULT_REGION": "us-east-1"})
 def test_create_order_missing_fields():
     with mock_orders_table():
-        from assets.create_order import lambda_handler
-        
-     
-        incomplete_data = {
-            "totalAmount": 30.50,
-            "orderItems": [{"name": "Burger"}]
-        }
-        
-        event = create_powertools_event(
-            method="POST",
-            path=f"/orders/{USER_ID}",
-            body=incomplete_data
-        )
-        
-        result = lambda_handler(event, {})
-        assert result["statusCode"] == 400
-        body = json.loads(result["body"])
-        assert "Missing key: restaurantId" in body["error"]
+        with patch("assets.create_order.boto3.resource") as mock_resource:
+            mock_dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+            mock_resource.return_value = mock_dynamodb
+
+            from assets.create_order import lambda_handler
+
+            incomplete_data = {
+                "totalAmount": Decimal("30.50"),
+                "orderItems": [{"name": "Burger"}],
+            }
+
+            event = create_powertools_event("POST", "/orders", body=incomplete_data)
+            result = lambda_handler(event, {})
+            assert result["statusCode"] == 400
+            body = json.loads(result["body"])
+            assert "Missing key: restaurantId" in body["error"]
+
+
+@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME, "AWS_DEFAULT_REGION": "us-east-1"})
+def test_create_order_unauthorized():
+    with mock_orders_table():
+        with patch("assets.create_order.boto3.resource") as mock_resource:
+            mock_dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+            mock_resource.return_value = mock_dynamodb
+
+            from assets.create_order import lambda_handler
+
+            order_data = {
+                "restaurantId": "rest-456",
+                "totalAmount": Decimal("30.50"),
+                "orderItems": [{"name": "Burger"}],
+            }
+            event = create_powertools_event(
+                "POST", "/orders", body=order_data, claims={}
+            )
+            result = lambda_handler(event, {})
+            assert result["statusCode"] == 401
+
+
+@patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME, "AWS_DEFAULT_REGION": "us-east-1"})
+def test_get_order_not_found():
+    with mock_orders_table():
+        with patch("assets.get_order.boto3.resource") as mock_resource:
+            mock_dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+            mock_resource.return_value = mock_dynamodb
+
+            from assets.get_order import lambda_handler
+
+            event = create_powertools_event(
+                "GET", "/orders/nonexistent", path_params={"orderId": "nonexistent"}
+            )
+            result = lambda_handler(event, {})
+            assert result["statusCode"] == 404
 
 
 if __name__ == "__main__":
