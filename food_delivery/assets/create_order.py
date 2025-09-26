@@ -132,7 +132,7 @@ def handle_create_order_direct(event, context):
         }
 
 
-        dynamodb = boto3.resource("dynamodb", region_name='us-east-1')
+        dynamodb = boto3.resource("dynamodb")
         test_table = dynamodb.Table(os.environ["TABLE_NAME"])
         
         test_table.put_item(
