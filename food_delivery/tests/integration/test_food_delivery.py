@@ -5,8 +5,8 @@ import json
 import jwt
 import uuid
 
-new_user_id = ""
-new_user =  {
+new_order_id = ""
+new_order =  {
       "restaurantId": 200,
       "orderId": str(uuid.uuid4()),
       "orderItems": [
@@ -46,36 +46,36 @@ def test_access_to_the_users_without_authentication(global_config):
     assert response.status_code == 401
 
 # @pytest.mark.skip(reason="Admin auth failing")
-def test_get_list_of_users_by_regular_user(global_config):
+def test_get_list_of_orders_by_regular_user(global_config):
     response = requests.get(
-        global_config["ApiUrl"] + 'users',
+        global_config["ApiUrl"] + 'orders',
         headers=auth_header(global_config["regularUserIdToken"])
     )
     print(f"Response status: {response.status_code}")
     print(f"Response body: {response.text}")
-    assert response.status_code == 403
+    assert response.status_code == 200
 
 # @pytest.mark.skip(reason="Admin auth failing")
-def test_deny_post_user_by_regular_user(global_config):
+def test_create_order_by_regular_user(global_config):
     response = requests.post(
-        global_config["ApiUrl"] + 'users',
-        data=json.dumps(new_user),
+        global_config["ApiUrl"] + 'orders',
+        data=json.dumps(new_order),
         headers=auth_header(global_config["regularUserIdToken"])
     )
     print(f"Response status: {response.status_code}")
     print(f"Response body: {response.text}")
-    assert response.status_code == 403
+    assert response.status_code == 200
 
 # @pytest.mark.skip(reason="Admin auth failing")
-def test_allow_post_user_by_administrative_user(global_config):
-    global new_user_id
+def test_create_order_by_administrative_user(global_config):
+    global new_order_id
     
     decoded_admin = jwt.decode(global_config["adminUserIdToken"], options={"verify_signature": False})
     print(f"Decoded admin token: {json.dumps(decoded_admin, indent=2)}")
     
     response = requests.post(
-        global_config["ApiUrl"] + 'users',
-        data=json.dumps(new_user),
+        global_config["ApiUrl"] + 'orders',
+        data=json.dumps(new_order),
         headers={
             "Authorization": f"Bearer {global_config['adminUserIdToken']}",
             "Content-Type": "application/json"
@@ -94,46 +94,45 @@ def test_allow_post_user_by_administrative_user(global_config):
     data = response.json()
     print(f"Response JSON parsed: {json.dumps(data, indent=2)}") 
 
-    inner = json.loads(data["body"])
-    print(f"Inner parsed JSON: {json.dumps(inner, indent=2)}")
-    assert inner['name'] == new_user['name']
+
+    assert data['orderId'] is not None
     
-    new_user_id = inner['user_id']
-    print(f"Created user with ID: {new_user_id}")
+    new_order_id = data['orderId']
+    print(f"Created order with ID: {new_order_id}")
 
 # @pytest.mark.skip(reason="Admin auth failing")
-def test_deny_post_invalid_user(global_config):
-    new_invalid_user = {"invalid_field": "test"} 
+def test_deny_post_invalid_order(global_config):
+    new_invalid_order = {"invalid_field": "test"} 
     
     response = requests.post(
-        global_config["ApiUrl"] + 'users',
-        data=json.dumps(new_invalid_user),
+        global_config["ApiUrl"] + 'orders',
+        data=json.dumps(new_invalid_order),
         headers=auth_header(global_config["adminUserIdToken"])
     )
     
     print(f"Response status: {response.status_code}")
     print(f"Response body: {response.text}")
     data = response.json()
-    inner = json.loads(data["body"])
     
-    print(f"Parsed inner JSON: {json.dumps(inner, indent=2)}")
+    print(f"Parsed JSON: {json.dumps(data, indent=2)}")
     
     assert data["statusCode"] == 400
-    assert "Missing key: name" in inner["error"]
+    assert "Missing key: restaurantId" in data["body"]
 
 # @pytest.mark.skip(reason="Admin auth failing")
-def test_get_user_by_regular_user(global_config):
-    if not new_user_id:
-        pytest.skip("No user created to test with")
+def test_get_order_by_regular_user(global_config):
+    if not new_order_id:
+        pytest.skip("No order created to test with")
     
     response = requests.get(
-        global_config["ApiUrl"] + f'users/{new_user_id}',
+        global_config["ApiUrl"] + f'orders/{new_order_id}',
         headers=auth_header(global_config["regularUserIdToken"])
     )
     
     print(f"Response status: {response.status_code}")
     print(f"Response body: {response.text}")
-    print(f"Trying to access user ID: {new_user_id}")
+    print(f"Trying to access order ID: {new_order_id}")
     
-    assert response.status_code == 403
+
+    assert response.status_code == 200
 

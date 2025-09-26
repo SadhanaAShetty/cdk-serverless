@@ -134,13 +134,16 @@ def clear_dynamo_tables():
 
     response = db_client.scan(
         TableName=table_name,
-        ProjectionExpression="user_id"
+        ProjectionExpression="userId, orderId"
     )
 
     for item in response.get("Items", []):
         db_client.delete_item(
             TableName=table_name,
-            Key={"user_id": item["user_id"]}
+            Key={
+                "userId": item["userId"],
+                "orderId": item["orderId"]
+            }
         )
 
 

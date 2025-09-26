@@ -4,11 +4,8 @@ import json
 from datetime import datetime
 from decimal import Decimal
 import boto3
-from botocore.exceptions import ClientError
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
-from aws_lambda_powertools.utilities.typing import LambdaContext
-
 
 logger = Logger()
 tracer = Tracer()
@@ -17,34 +14,41 @@ app = APIGatewayRestResolver()
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
 
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
+
 
 @tracer.capture_method
-@app.post("/orders/{user_id}")
-def create_order(user_id: str):
-    data: dict = app.current_event.json_body
-    
-    if "user_id" not in data:
-        data["user_id"] = str(uuid.uuid1())
-   
+@app.post("/orders")
+def create_order():
+    userId = app.current_event.request_context.authorizer.claims.get("sub")
+    if not userId:
+        return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
+
+    data = app.current_event.json_body
     required_keys = ["restaurantId", "totalAmount", "orderItems"]
     for key in required_keys:
         if key not in data:
             return {
-                "statusCode": 400, 
+                "statusCode": 400,
                 "body": json.dumps({"error": f"Missing key: {key}"})
             }
 
-
+    order_id = str(uuid.uuid4())
     order_time = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
     item_to_store = {
-        "userId": user_id,
-        "orderId": str(uuid.uuid1()),
+        "userId": userId,
+        "orderId": order_id,
         "restaurantId": data["restaurantId"],
-        "totalAmount": data["totalAmount"],
+        "totalAmount": Decimal(str(data["totalAmount"])),
         "orderItems": data["orderItems"],
         "status": "PLACED",
-        "orderTime": order_time,
+        "timestamp": int(datetime.utcnow().timestamp()),
+        "orderTime": order_time
     }
 
     try:
@@ -52,30 +56,98 @@ def create_order(user_id: str):
             Item=item_to_store,
             ConditionExpression="attribute_not_exists(orderId) AND attribute_not_exists(userId)"
         )
-        print("Your order is successfully placed!")
+
         return {
             "statusCode": 200,
-            "body": json.dumps({
-                "user_id": item_to_store["user_id"],
-                "order_id": item_to_store["order_id"],
-                "timestamp": item_to_store["time_stamp"]
-            })
+            "body": json.dumps(item_to_store, cls=DecimalEncoder)
         }
 
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            return {
-                "statusCode": 409,
-                "body": json.dumps({"error": "Order already exists"})
-            }
-        raise
-
     except Exception as e:
-        logger.error(f"Error creating user: {str(e)}")
+        logger.error(f"Error creating order: {str(e)}")
         return {
             "statusCode": 500,
             "body": json.dumps({"error": "Internal Server Error"})
         }
-def lambda_handler(event: dict, context):
-    print("DEBUG incoming event:", json.dumps(event))
-    return app.resolve(event, context)
+
+
+def lambda_handler(event, context):
+    logger.debug(f"Incoming event: {json.dumps(event)}")
+    
+    if (event.get("httpMethod") == "POST" and event.get("path") == "/orders" and 
+        "requestContext" in event and "authorizer" in event["requestContext"]):
+        return handle_create_order_direct(event, context)
+    
+    try:
+        return app.resolve(event, context)
+    except Exception as e:
+        logger.error(f"Error in lambda_handler: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal Server Error"})
+        }
+
+def handle_create_order_direct(event, context):
+    try:
+        request_context = event.get("requestContext", {})
+        authorizer = request_context.get("authorizer", {})
+        claims = authorizer.get("claims", {})
+        userId = claims.get("sub")
+        
+        if not userId:
+            return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
+
+        body = event.get("body")
+        if not body:
+            return {"statusCode": 400, "body": json.dumps({"error": "Missing request body"})}
+            
+        data = json.loads(body)
+        required_keys = ["restaurantId", "totalAmount", "orderItems"]
+        for key in required_keys:
+            if key not in data:
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps({"error": f"Missing key: {key}"})
+                }
+
+        order_id = str(uuid.uuid4())
+        order_time = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+        order_items = []
+        for item in data["orderItems"]:
+            order_item = item.copy()
+            if "price" in order_item:
+                order_item["price"] = Decimal(str(order_item["price"]))
+            order_items.append(order_item)
+
+        item_to_store = {
+            "userId": userId,
+            "orderId": order_id,
+            "restaurantId": data["restaurantId"],
+            "totalAmount": Decimal(str(data["totalAmount"])),
+            "orderItems": order_items,
+            "status": "PLACED",
+            "timestamp": int(datetime.utcnow().timestamp()),
+            "orderTime": order_time
+        }
+
+
+        dynamodb = boto3.resource("dynamodb")
+        test_table = dynamodb.Table(os.environ["TABLE_NAME"])
+        
+        test_table.put_item(
+            Item=item_to_store,
+            ConditionExpression="attribute_not_exists(orderId) AND attribute_not_exists(userId)"
+        )
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps(item_to_store, cls=DecimalEncoder)
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating order: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal Server Error"})
+        }
