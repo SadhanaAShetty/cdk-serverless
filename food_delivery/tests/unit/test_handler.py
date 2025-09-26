@@ -76,7 +76,7 @@ def create_powertools_event(method, path, body=None, path_params=None):
 @patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
 def test_create_order():
     with mock_orders_table():
-        from your_lambda_module import lambda_handler
+        from assets.create_order import lambda_handler
         
         order_data = {
             "restaurantId": "rest-456",
@@ -105,7 +105,7 @@ def test_create_order():
 @patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
 def test_list_orders():
     with mock_orders_table():
-        from your_lambda_module import lambda_handler
+        from assets.list_order import lambda_handler
 
         event = create_powertools_event(
             method="GET",
@@ -122,7 +122,7 @@ def test_list_orders():
 @patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
 def test_get_order():
     with mock_orders_table():
-        from your_lambda_module import lambda_handler
+        from assets.get_order import lambda_handler
 
         event = create_powertools_event(
             method="GET",
@@ -140,7 +140,7 @@ def test_get_order():
 @patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
 def test_edit_order():
     with mock_orders_table():
-        from your_lambda_module import lambda_handler
+        from assets.edit_order import lambda_handler
 
         new_order_data = {
             "restaurantId": "rest-123",
@@ -163,7 +163,7 @@ def test_edit_order():
 @patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
 def test_cancel_order():
     with mock_orders_table():
-        from your_lambda_module import lambda_handler
+        from assets.cancel_order import lambda_handler
 
         event = create_powertools_event(
             method="POST",  
@@ -212,7 +212,7 @@ def test_cancel_order_time_limit():
             }
         )
         
-        from your_lambda_module import lambda_handler
+        from assets.cancel_order import lambda_handler
         
         event = create_powertools_event(
             method="POST",
@@ -229,7 +229,7 @@ def test_cancel_order_time_limit():
 @patch.dict(os.environ, {"TABLE_NAME": TABLE_NAME})
 def test_create_order_missing_fields():
     with mock_orders_table():
-        from your_lambda_module import lambda_handler
+        from assets.create_order import lambda_handler
         
      
         incomplete_data = {
