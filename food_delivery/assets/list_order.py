@@ -25,10 +25,20 @@ class DecimalEncoder(json.JSONEncoder):
 @app.get("/orders")
 def list_orders_handler():
     try:
-        # Extract userId from authorizer claims
-        authorizer = getattr(app.current_event.request_context, 'authorizer', None)
-        claims = getattr(authorizer, 'claims', {}) if authorizer else {}
-        userId = claims.get("sub")
+
+        authorizer = getattr(app.current_event.request_context, 'authorizer', {})
+        userId = None
+        
+
+        if hasattr(authorizer, 'claims') and authorizer.claims:
+            userId = authorizer.claims.get("sub")
+        elif hasattr(authorizer, 'userId'):
+            userId = authorizer.userId
+        elif isinstance(authorizer, dict):
+            userId = authorizer.get('userId')
+        
+        logger.info(f"List orders - Authorizer context: {authorizer}")
+        logger.info(f"List orders - Extracted userId: {userId}")
         
         if not userId:
             return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}

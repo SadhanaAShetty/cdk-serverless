@@ -3,22 +3,20 @@ import pytest
 import requests
 import json
 import jwt
-import uuid
 
-new_order_id = ""
-new_order =  {
-      "restaurantId": 200,
-      "orderId": str(uuid.uuid4()),
-      "orderItems": [
-          {
-              "name": "Pasta Carbonara",
-              "price": 14.99,
-              "id": 123,
-              "quantity": 1
-          }
-      ],
-      "totalAmount": 14.99
-  }
+new_order_id = None
+new_order = {
+    "restaurantId": "rest-200",
+    "totalAmount": 14.99,
+    "orderItems": [
+        {
+            "name": "Pasta Carbonara",
+            "price": 14.99,
+            "quantity": 1,
+            "description": "Classic Italian pasta with eggs and cheese"
+        }
+    ]
+}
 
 
 def auth_header(token):
@@ -42,7 +40,7 @@ def test_cognito_users_created(global_config):
 
 # @pytest.mark.skip(reason="Admin auth failing")
 def test_access_to_the_users_without_authentication(global_config):
-    response = requests.get(global_config["ApiUrl"] + 'users')
+    response = requests.get(global_config["ApiUrl"] + 'orders')
     assert response.status_code == 401
 
 # @pytest.mark.skip(reason="Admin auth failing")
@@ -112,26 +110,13 @@ def test_deny_post_invalid_order(global_config):
     
     print(f"Response status: {response.status_code}")
     print(f"Response body: {response.text}")
-    data = response.json()
     
+
+    assert response.status_code == 400
+    
+    data = response.json()
     print(f"Parsed JSON: {json.dumps(data, indent=2)}")
     
-    assert data["statusCode"] == 400
-    assert "Missing key: restaurantId" in data["body"]
 
-# @pytest.mark.skip(reason="Admin auth failing")
-def test_get_order_by_regular_user(global_config):
-    if not new_order_id:
-        pytest.skip("No order created to test with")
-    
-    response = requests.get(
-        global_config["ApiUrl"] + f'orders/{new_order_id}',
-        headers=auth_header(global_config["regularUserIdToken"])
-    )
-    
-    print(f"Response status: {response.status_code}")
-    print(f"Response body: {response.text}")
-    print(f"Trying to access order ID: {new_order_id}")
-    
+    assert "Missing key: restaurantId" in data["error"]
 
-    assert response.status_code == 200

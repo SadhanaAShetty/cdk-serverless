@@ -243,7 +243,7 @@ def test_edit_order():
                     "body": json.dumps({"error": "Order not found"}),
                 }
 
-            # Process order items to ensure Decimal types
+            
             processed_items = []
             for item in new_data.get("orderItems", []):
                 processed_item = item.copy()
@@ -362,7 +362,6 @@ def test_cancel_order():
 
 
 def test_cancel_order_time_limit():
-    """Simple test that directly tests the cancel time limit functionality"""
     with mock_aws():
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.create_table(

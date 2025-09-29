@@ -1,7 +1,6 @@
 import os
 import boto3
 import pytest
-import json
 import time
 import jwt  
 
@@ -67,7 +66,7 @@ def create_cognito_accounts():
     result["regularUserAccessToken"] = auth_resp["AuthenticationResult"]["AccessToken"]
     result["regularUserRefreshToken"] = auth_resp["AuthenticationResult"]["RefreshToken"]
 
-    # Admin user
+    
     result["adminUserName"] = "adminUser@example.com"
     result["adminUserPassword"] = sm_client.get_random_password(RequireEachIncludedType=True)["RandomPassword"]
 
