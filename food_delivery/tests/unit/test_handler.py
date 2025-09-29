@@ -3,7 +3,7 @@ import os
 import time
 import boto3
 import pytest
-from moto import mock_dynamodb
+from moto import mock_aws
 from contextlib import contextmanager
 from decimal import Decimal
 from unittest.mock import patch
@@ -17,7 +17,7 @@ UUID_MOCK = "fixed-order-id"
 
 @contextmanager
 def mock_orders_table():
-    with mock_dynamodb():
+    with mock_aws():
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.create_table(
             TableName=TABLE_NAME,
@@ -88,10 +88,10 @@ def test_create_order(mock_uuid):
 
             order_data = {
                 "restaurantId": "rest-456",
-                "totalAmount": Decimal("30.50"),
+                "totalAmount": 30.50,
                 "orderItems": [
-                    {"name": "Burger", "price": Decimal("15.99"), "quantity": 1},
-                    {"name": "Fries", "price": Decimal("4.99"), "quantity": 1},
+                    {"name": "Burger", "price": 15.99, "quantity": 1},
+                    {"name": "Fries", "price": 4.99, "quantity": 1},
                 ],
             }
 
@@ -107,7 +107,7 @@ def test_create_order(mock_uuid):
 
 
 def test_list_orders():
-    with mock_dynamodb():
+    with mock_aws():
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.create_table(
             TableName=TABLE_NAME,
@@ -155,7 +155,7 @@ def test_list_orders():
 
 
 def test_get_order():
-    with mock_dynamodb():
+    with mock_aws():
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.create_table(
             TableName=TABLE_NAME,
@@ -205,7 +205,7 @@ def test_get_order():
 
 
 def test_edit_order():
-    with mock_dynamodb():
+    with mock_aws():
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.create_table(
             TableName=TABLE_NAME,
@@ -243,13 +243,21 @@ def test_edit_order():
                     "body": json.dumps({"error": "Order not found"}),
                 }
 
+            # Process order items to ensure Decimal types
+            processed_items = []
+            for item in new_data.get("orderItems", []):
+                processed_item = item.copy()
+                if "price" in processed_item:
+                    processed_item["price"] = Decimal(str(processed_item["price"]))
+                processed_items.append(processed_item)
+
             response = table.update_item(
                 Key={"userId": userId, "orderId": orderId},
                 UpdateExpression="SET restaurantId = :rid, totalAmount = :amount, orderItems = :items",
                 ExpressionAttributeValues={
                     ":rid": new_data.get("restaurantId"),
                     ":amount": Decimal(str(new_data.get("totalAmount"))),
-                    ":items": new_data.get("orderItems"),
+                    ":items": processed_items,
                 },
                 ReturnValues="ALL_NEW",
             )
@@ -276,7 +284,7 @@ def test_edit_order():
 
 
 def test_cancel_order():
-    with mock_dynamodb():
+    with mock_aws():
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.create_table(
             TableName=TABLE_NAME,
@@ -355,7 +363,7 @@ def test_cancel_order():
 
 def test_cancel_order_time_limit():
     """Simple test that directly tests the cancel time limit functionality"""
-    with mock_dynamodb():
+    with mock_aws():
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.create_table(
             TableName=TABLE_NAME,
@@ -442,8 +450,8 @@ def test_create_order_missing_fields():
             from assets.create_order import lambda_handler
 
             incomplete_data = {
-                "totalAmount": Decimal("30.50"),
-                "orderItems": [{"name": "Burger"}],
+                "totalAmount": 30.50,
+                "orderItems": [{"name": "Burger", "price": 15.99, "quantity": 1}],
             }
 
             event = create_powertools_event("POST", "/orders", body=incomplete_data)
@@ -464,8 +472,8 @@ def test_create_order_unauthorized():
 
             order_data = {
                 "restaurantId": "rest-456",
-                "totalAmount": Decimal("30.50"),
-                "orderItems": [{"name": "Burger"}],
+                "totalAmount": 30.50,
+                "orderItems": [{"name": "Burger", "price": 15.99, "quantity": 1}],
             }
             event = create_powertools_event(
                 "POST", "/orders", body=order_data, claims={}

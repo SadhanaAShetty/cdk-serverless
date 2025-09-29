@@ -154,4 +154,3 @@ def global_config():
     globalConfig.update(create_cognito_accounts())
     clear_dynamo_tables()
     return globalConfig
-
