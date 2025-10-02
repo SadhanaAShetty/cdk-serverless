@@ -84,7 +84,7 @@ class FoodDeliveryStack(Stack):
         authorizer_lambda = lmbda.Function(self, "AuthorizerLambda",
             runtime=lmbda.Runtime.PYTHON_3_11,
             handler="autherize.lambda_handler",
-            code=lmbda.Code.from_asset("assets"),
+            code=lmbda.Code.from_asset("food_delivery/assets"),
             environment={
                 "USER_POOL_ID": user_pool.user_pool_id,
                 "APPLICATION_CLIENT_ID": user_pool_client.user_pool_client_id,
@@ -105,7 +105,7 @@ class FoodDeliveryStack(Stack):
             function_name="create_order",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="create_order.lambda_handler",
-            code=lmbda.Code.from_asset("assets"),
+            code=lmbda.Code.from_asset("food_delivery/assets"),
             layers=[powertools_layer],
             environment={
                 "TABLE_NAME": table.table_name
@@ -121,7 +121,7 @@ class FoodDeliveryStack(Stack):
             function_name="edit_order",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="edit_order.lambda_handler",
-            code=lmbda.Code.from_asset("assets"),
+            code=lmbda.Code.from_asset("food_delivery/assets"),
             layers=[powertools_layer],
             environment={
                 "TABLE_NAME": table.table_name
@@ -136,7 +136,7 @@ class FoodDeliveryStack(Stack):
             function_name="list_order",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="list_order.lambda_handler",
-            code=lmbda.Code.from_asset("assets"),
+            code=lmbda.Code.from_asset("food_delivery/assets"),
             layers=[powertools_layer],
             environment={
                 "TABLE_NAME": table.table_name
@@ -151,7 +151,7 @@ class FoodDeliveryStack(Stack):
             function_name="get_order",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="get_order.lambda_handler",
-            code=lmbda.Code.from_asset("assets"),
+            code=lmbda.Code.from_asset("food_delivery/assets"),
             layers=[powertools_layer],
             environment={
                 "TABLE_NAME": table.table_name
@@ -166,7 +166,7 @@ class FoodDeliveryStack(Stack):
             function_name="cancel_order",
             runtime=lmbda.Runtime.PYTHON_3_12,
             handler="cancel_order.lambda_handler",
-            code=lmbda.Code.from_asset("assets"),
+            code=lmbda.Code.from_asset("food_delivery/assets"),
             layers=[powertools_layer],
             environment={
                 "TABLE_NAME": table.table_name

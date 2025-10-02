@@ -17,10 +17,18 @@ table = dynamodb.Table(os.environ["TABLE_NAME"])
 @app.put("/orders/{orderId}")
 def edit_order_handler():
     try:
-        # Extract userId from authorizer claims
-        authorizer = getattr(app.current_event.request_context, 'authorizer', None)
-        claims = getattr(authorizer, 'claims', {}) if authorizer else {}
-        userId = claims.get("sub")
+        authorizer = getattr(app.current_event.request_context, 'authorizer', {})
+        userId = None
+        
+        if hasattr(authorizer, 'claims') and authorizer.claims:
+            userId = authorizer.claims.get("sub")
+        elif hasattr(authorizer, 'userId'):
+            userId = authorizer.userId
+        elif isinstance(authorizer, dict):
+            userId = authorizer.get('userId')
+        
+        logger.info(f"Edit order - Authorizer context: {authorizer}")
+        logger.info(f"Edit order - Extracted userId: {userId}")
         
         if not userId:
             return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
@@ -28,13 +36,13 @@ def edit_order_handler():
         orderId = app.current_event.path_parameters["orderId"]
         data = app.current_event.json_body
         
-        # Check if the order exists first
+
         existing_item = table.get_item(Key={"userId": userId, "orderId": orderId})
         
         if "Item" not in existing_item:
             return {"statusCode": 404, "body": json.dumps({"error": "Order not found"})}
 
-        # Update the order
+
         response = table.update_item(
             Key={"userId": userId, "orderId": orderId},
             UpdateExpression="SET restaurantId = :rid, totalAmount = :amount, orderItems = :items",

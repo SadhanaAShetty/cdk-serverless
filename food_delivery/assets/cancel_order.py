@@ -20,9 +20,19 @@ table = dynamodb.Table(os.environ["TABLE_NAME"])
 @app.delete("/orders/{orderId}")
 def cancel_order_handler():
     try:
-        authorizer = getattr(app.current_event.request_context, 'authorizer', None)
-        claims = getattr(authorizer, 'claims', {}) if authorizer else {}
-        userId = claims.get("sub")
+        authorizer = getattr(app.current_event.request_context, 'authorizer', {})
+        userId = None
+        
+       
+        if hasattr(authorizer, 'claims') and authorizer.claims:
+            userId = authorizer.claims.get("sub")
+        elif hasattr(authorizer, 'userId'):
+            userId = authorizer.userId
+        elif isinstance(authorizer, dict):
+            userId = authorizer.get('userId')
+        
+        logger.info(f"Cancel order - Authorizer context: {authorizer}")
+        logger.info(f"Cancel order - Extracted userId: {userId}")
         
         if not userId:
             return {"statusCode": 401, "body": json.dumps({"error": "User not authenticated"})}
