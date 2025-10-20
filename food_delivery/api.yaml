@@ -1,0 +1,329 @@
+
+---
+openapi: 3.0.1
+info:
+  title: serverless-workshop-dev-module-4
+  version: 2022-07-12T06:04:43Z
+paths:
+  /address:
+    get:
+      security:
+      - CognitoAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: 
+          Fn::Sub: 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ListUserAddressesFunction.Arn}/invocations'
+        passthroughBehavior: "when_no_match"
+        type: "aws_proxy"
+    post:
+      parameters:
+        - name: Content-Type
+          in: header
+          schema:
+            type: string
+        - name: X-Amz-Target
+          in: header
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserAddressInputModel"
+      responses:
+        "200":
+          description: 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+        - CognitoAuthorizer: []
+      x-amazon-apigateway-request-validator: Validate body
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiGatewayEventBridgeRole.Arn}
+        httpMethod: POST
+        uri: arn:aws:apigateway:${AWS::Region}:events:action/PutEvents
+        passthroughBehavior: when_no_templates
+        type: aws
+        requestTemplates:
+          application/json:
+            Fn::Sub: >-
+              #set($context.requestOverride.header.X-Amz-Target =
+              "AWSEvents.PutEvents")
+
+              #set($context.requestOverride.header.Content-Type = "application/x-amz-json-1.1")
+
+              #set($inputRoot = $input.path("$"))
+                { "Entries": [{
+                  "Detail": "{#foreach($paramName in $inputRoot.keySet())\"$paramName\" : \"$util.escapeJavaScript($inputRoot.get($paramName))\" #if($foreach.hasNext),#end #end,\"userId\": \"$context.authorizer.claims.sub\"}",
+                  "DetailType": "address.added",
+                  "EventBusName": "${AddressBus.Name}",
+                  "Source": "customer-profile"
+                }]}
+        responses:
+          default:
+            statusCode: "200"
+            responseTemplates:
+              application/json: "{}"
+
+  /address/{addressId}:
+    put:
+      parameters:
+      - name: "Content-Type"
+        in: "header"
+        schema:
+          type: "string"
+      - name: "X-Amz-Target"
+        in: "header"
+        schema:
+          type: "string"
+      - name: "addressId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+      - CognitoAuthorizer: []
+      x-amazon-apigateway-integration:
+        credentials: 
+          Fn::Sub: "${ApiGatewayEventBridgeRole.Arn}"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:${AWS::Region}:events:action/PutEvents"
+        responses:
+          default:
+            statusCode: "200"
+            responseTemplates:
+              application/json: "{}"
+        requestTemplates:
+          application/json: 
+            Fn::Sub: 
+              |-
+                #set($context.requestOverride.header.X-Amz-Target = "AWSEvents.PutEvents")
+                #set($context.requestOverride.header.Content-Type = "application/x-amz-json-1.1")
+                #set($inputRoot = $input.path("$"))
+                  { "Entries": [{
+                    "Detail": "{#foreach($paramName in $inputRoot.keySet())\"$paramName\" : \"$util.escapeJavaScript($inputRoot.get($paramName))\" #if($foreach.hasNext),#end #end,\"userId\": \"$context.authorizer.claims.sub\",\"addressId\": \"$input.params().get('path').get('addressId')\"}",
+                    "DetailType": "address.updated",
+                    "EventBusName": "${AddressBus.Name}",
+                    "Source": "customer-profile"
+                  }]}
+        passthroughBehavior: "when_no_templates"
+        type: "aws"
+    delete:
+      parameters:
+      - name: "Content-Type"
+        in: "header"
+        schema:
+          type: "string"
+      - name: "X-Amz-Target"
+        in: "header"
+        schema:
+          type: "string"
+      - name: "addressId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+      - CognitoAuthorizer: []
+      x-amazon-apigateway-integration:
+        credentials: 
+          Fn::Sub: "${ApiGatewayEventBridgeRole.Arn}"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:${AWS::Region}:events:action/PutEvents"
+        responses:
+          default:
+            statusCode: "200"
+            responseTemplates:
+              application/json: "{}"
+        requestTemplates:
+          application/json:
+            Fn::Sub: 
+              |-
+                #set($context.requestOverride.header.X-Amz-Target = "AWSEvents.PutEvents")
+                #set($context.requestOverride.header.Content-Type = "application/x-amz-json-1.1")
+                {
+                  "Entries": [
+                    {
+                      "Detail": "{\"userId\": \"$context.authorizer.claims.sub\",\"addressId\": \"$input.params().get('path').get('addressId')\"}",
+                      "DetailType": "address.deleted",
+                      "EventBusName": "${AddressBus.Name}",
+                      "Source": "customer-profile"
+                    }
+                  ]
+                }
+        passthroughBehavior: "when_no_templates"
+        type: "aws"
+
+  /favorite:
+    get:
+      security:
+      - CognitoAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: 
+          Fn::Sub: 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ListUserFavoritesFunction.Arn}/invocations'
+        passthroughBehavior: "when_no_match"
+        type: "aws_proxy"
+    post:
+      parameters:
+      - name: "Content-Type"
+        in: "header"
+        schema:
+          type: "string"
+      - name: "X-Amz-Target"
+        in: "header"
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+      - CognitoAuthorizer: []
+      x-amazon-apigateway-integration:
+        credentials: 
+          Fn::Sub: '${APIGatewayQueueCommandRole.Arn}'
+        httpMethod: "POST"
+        uri: 
+          Fn::Sub: 
+            "arn:aws:apigateway:${AWS::Region}:sqs:path/${AWS::AccountId}/${FavoriteRestaurantsQueue.QueueName}"
+        responses:
+          default:
+            statusCode: "200"
+            responseTemplates:
+              application/json: "{}"
+        requestParameters:
+          integration.request.header.Content-Type: "'application/x-www-form-urlencoded'"
+        requestTemplates:
+          application/json:
+            Fn::Join: [ 
+              "&", [ 
+                "#set($inputRoot = $input.path('$'))Action=SendMessage",
+                "MessageBody=$inputRoot.get('restaurantId')",
+                "MessageAttributes.1.Name=CommandName",
+                "MessageAttributes.1.Value.StringValue=AddFavorite",
+                "MessageAttributes.1.Value.DataType=String",
+                "MessageAttributes.2.Name=UserId",
+                "MessageAttributes.2.Value.StringValue=$context.authorizer.claims.sub",
+                "MessageAttributes.2.Value.DataType=String",
+                "Version=2012-11-05"
+              ] 
+            ]
+        passthroughBehavior: "never"
+        type: "aws"
+
+  /favorite/{restaurantId}:
+    delete:
+      parameters:
+      - name: "Content-Type"
+        in: "header"
+        schema:
+          type: "string"
+      - name: "X-Amz-Target"
+        in: "header"
+        schema:
+          type: "string"
+      - name: "restaurantId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+      - CognitoAuthorizer: []
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: "${APIGatewayQueueCommandRole.Arn}"
+        httpMethod: "POST"
+        uri: 
+          Fn::Sub:
+            "arn:aws:apigateway:${AWS::Region}:sqs:path/${AWS::AccountId}/${FavoriteRestaurantsQueue.QueueName}"
+        responses:
+          default:
+            statusCode: "200"
+            responseTemplates:
+              application/json: "{}"
+        requestParameters:
+          integration.request.header.Content-Type: "'application/x-www-form-urlencoded'"
+        requestTemplates:
+          application/json: 
+            Fn::Join: [ 
+              "&", [ 
+                "Action=SendMessage",
+                "MessageBody=$input.params().get('path').get('restaurantId')",
+                "MessageAttributes.1.Name=CommandName",
+                "MessageAttributes.1.Value.StringValue=DeleteFavorite",
+                "MessageAttributes.1.Value.DataType=String",
+                "MessageAttributes.2.Name=UserId",
+                "MessageAttributes.2.Value.StringValue=$context.authorizer.claims.sub",
+                "MessageAttributes.2.Value.DataType=String",
+                "Version=2012-11-05"
+              ] 
+            ]
+        passthroughBehavior: "never"
+        type: "aws"
+
+components:
+  schemas:
+    Empty:
+      title: Empty Schema
+      type: object
+    UserAddressInputModel:
+      required:
+        - city
+        - line1
+        - line2
+        - postal
+        - stateProvince
+      type: object
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        stateProvince:
+          type: string
+        postal:
+          type: string
+  securitySchemes:
+    CognitoAuthorizer:
+      type: apiKey
+      name: Authorization
+      in: header
+      x-amazon-apigateway-authtype: cognito_user_pools
+      x-amazon-apigateway-authorizer:
+        providerARNs:
+          - Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}
+        type: cognito_user_pools
+x-amazon-apigateway-request-validators:
+  Validate body:
+    validateRequestParameters: false
+    validateRequestBody: true
