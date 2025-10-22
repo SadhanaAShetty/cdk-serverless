@@ -1,11 +1,13 @@
 ## Description  
-Please provide a brief summary of the changes and the motivation behind them.  
+Added User Profile features to the Food Delivery project.
+This includes functionality for users to add, edit, list, and delete addresses, as well as manage favorite restaurants.
+Also implemented unit tests and integration tests to ensure reliability and correctness of these new modules 
 
 ---
 
 ## Changes  
-- [ ] Feature added  
-- [ ] Bug fix  
+- [✅] Feature added — User address and favorites functionality
+- [✅] Tests — Added unit and integration tests for address and favorites APIs  
 - [ ] Refactor  
 - [ ] Tests  
 - [ ] Documentation  
@@ -13,11 +15,11 @@ Please provide a brief summary of the changes and the motivation behind them.
 ---
 
 ## Checklist  
-- [ ] Code follows project guidelines  
-- [ ] Unit tests added/updated  
-- [ ] All tests passing locally  
+- [✅] Code follows project guidelines  
+- [✅] Unit tests added/updated  
+- [✅] All tests passing locally  
 - [ ] Documentation updated (if needed)  
-- [ ] No sensitive data committed  
+- [✅] No sensitive data committed  
 
 ---
 

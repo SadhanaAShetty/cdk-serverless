@@ -82,6 +82,7 @@ class FoodDeliveryStack(Stack):
 
         #authorizer lambda 
         authorizer_lambda = lmbda.Function(self, "AuthorizerLambda",
+            function_name="AuthorizerLambda", 
             runtime=lmbda.Runtime.PYTHON_3_11,
             handler="autherize.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/assets"),
@@ -98,7 +99,7 @@ class FoodDeliveryStack(Stack):
             results_cache_ttl=Duration.seconds(0)
         )
 
-        #lambda for all api methods
+    
         #create_order Lambda
         create_order_lambda = lmbda.Function(
             self, "CreateOrderFunction",
