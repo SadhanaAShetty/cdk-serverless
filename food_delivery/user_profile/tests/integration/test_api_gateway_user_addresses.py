@@ -7,8 +7,8 @@ import copy
 
 LOGGER = logging.getLogger(__name__)
 
-user1_new_address = {"line1": "4566 Main", "line2": "Suite 200", "city": "Seattle", "stateProvince": "WA", "postal": "12345"}
-user2_new_address = {"line1": "7505 Beverly Blvd", "line2": "Apt 7", "city": "Los Angeles", "stateProvince": "CA", "postal": "90036"}
+user1_new_address = {"line1": "4566 oude", "straat": "Suite 200", "city": "Netherlands", "stateProvince": "NL", "postal": "12345"}
+user2_new_address = {"line1": "7505 binnen Blvd", "line2": "Apt 7", "city": "Germany", "stateProvince": "DE", "postal": "90036"}
 
 def test_add_user_address_with_invalid_fields(global_config):
     invalid_address = {"city": "Seattle", "stateProvince": "WA", "postal": "12345"}
@@ -52,7 +52,7 @@ def test_update_user_address(global_config):
     )
 
     user1addresses = json.loads(user1response.text) 
-    updated_address_info = {"line1": "4566 Main", "line2": "Suite 200", "city": "Seattle", "stateProvince": "WA", "postal": "12345"} 
+    updated_address_info = {"line1": "4566 Main", "line2": "Suite 200", "city": "Netherlands", "stateProvince": "NL", "postal": "12345"} 
 
     response = requests.put(
         global_config["ProfileApiEndpoint"] + '/address/' + user1addresses['addresses'][0]['address_id'],
