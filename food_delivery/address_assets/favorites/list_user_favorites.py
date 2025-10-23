@@ -23,29 +23,103 @@ class DecimalEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
+def extract_user_id_from_event(event):
+    """Helper function to extract userId from various event formats"""
+    try:
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+      
+        if isinstance(authorizer, dict):
+            if 'userId' in authorizer:
+                return authorizer['userId']
+            
+           
+            claims = authorizer.get('claims', {})
+            if isinstance(claims, str):
+                try:
+                    claims = json.loads(claims)
+                except:
+                    pass
+            
+            if isinstance(claims, dict) and 'sub' in claims:
+                return claims['sub']
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error extracting userId: {e}")
+        return None
+
 @tracer.capture_method
-@app.get("/favorites")
-def list_user_favorites():
-    user_id = app.current_event.request_context.authorizer.claims.get("sub")
-    if not user_id:
-        return Response(
-            status_code=401,
-            content_type="application/json",
-            body=json.dumps({"error": "Unauthorized"})
-        )
+def list_user_favorites(event):
+    try:
+        userId = extract_user_id_from_event(event)
+        
+        if not userId:
 
-    response = table.query(KeyConditionExpression=Key("userId").eq(user_id))
-    favorites = response.get("Items", [])
-    favorites.sort(key=lambda x: x.get("createdAt", ""), reverse=True)
+            return {
+                "statusCode": 401,
+                "body": json.dumps({"error": "Unauthorized"}),
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
+            }
 
-    return Response(
-        status_code=200,
-        content_type="application/json",
-        body=json.dumps({"favorites": favorites, "count": len(favorites)}, cls=DecimalEncoder)
-    )
+        response = table.query(KeyConditionExpression=Key("userId").eq(userId))
+        favorites = response.get("Items", [])
+        favorites.sort(key=lambda x: x.get("createdAt", ""), reverse=True)
+
+        logger.info(f"Found {len(favorites)} favorites for user {userId}")
+        
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"favorites": favorites, "count": len(favorites)}, cls=DecimalEncoder),
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error listing favorites: {e}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal Server Error"}),
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            }
+        }
 
 
 @tracer.capture_lambda_handler
 @logger.inject_lambda_context
 def lambda_handler(event: dict, context: LambdaContext) -> dict:
-    return app.resolve(event, context)
+    logger.debug(f"Incoming event: {json.dumps(event)}")
+    
+    try:
+        http_method = event.get('httpMethod', '')
+        path = event.get('path', '')
+        
+        if http_method == 'GET' and path == '/favorites':
+            return list_user_favorites(event)
+        else:
+            return {
+                "statusCode": 404,
+                "body": json.dumps({"error": "Not Found"}),
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
+            }
+    except Exception as e:
+        logger.error(f"Error in lambda_handler: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal Server Error"}),
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            }
+        }

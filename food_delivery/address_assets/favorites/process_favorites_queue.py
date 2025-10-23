@@ -48,7 +48,7 @@ def record_handler(record: SQSRecord):
                 'createdAt': datetime.utcnow().isoformat()
             }
             
-            # Use condition to prevent duplicate favorites
+            
             table.put_item(
                 Item=item,
                 ConditionExpression="attribute_not_exists(userId) AND attribute_not_exists(favoriteId)"

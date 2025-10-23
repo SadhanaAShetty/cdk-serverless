@@ -23,7 +23,6 @@ class DecimalEncoder(json.JSONEncoder):
 
 @tracer.capture_method
 def publish_address_event(event_type, user_id, address_id, address_data):
-    """Publish address event to EventBridge"""
     if not event_bus_name:
         logger.warning("EVENT_BUS_NAME not configured, skipping event publishing")
         return None
@@ -53,14 +52,36 @@ def publish_address_event(event_type, user_id, address_id, address_data):
         logger.error(f"Failed to publish {event_type} event: {str(e)}")
         return None
 
+def extract_user_id_from_event(event):
+    """Helper function to extract userId from various event formats"""
+    try:
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+        if isinstance(authorizer, dict):
+            if 'userId' in authorizer:
+                return authorizer['userId']
+            
+
+            claims = authorizer.get('claims', {})
+            if isinstance(claims, str):
+                try:
+                    claims = json.loads(claims)
+                except:
+                    pass
+            
+            if isinstance(claims, dict) and 'sub' in claims:
+                return claims['sub']
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error extracting userId: {e}")
+        return None
+
 @tracer.capture_method
 def delete_user_address(event, addressId):
     try:
-        # Get user ID from authorizer
-        request_context = event.get('requestContext', {})
-        authorizer = request_context.get('authorizer', {})
-        claims = authorizer.get('claims', {})
-        userId = claims.get("sub")
+        userId = extract_user_id_from_event(event)
         
         if not userId:
             return {
@@ -72,7 +93,6 @@ def delete_user_address(event, addressId):
                 }
             }
 
-        # Get the address before deleting for event publishing
         existing_response = table.get_item(
             Key={
                 "userId": userId,
@@ -92,7 +112,7 @@ def delete_user_address(event, addressId):
         
         address_to_delete = existing_response["Item"]
         
-        # Delete the address
+        
         table.delete_item(
             Key={
                 "userId": userId,
@@ -100,7 +120,7 @@ def delete_user_address(event, addressId):
             }
         )
         
-        # Publish event to EventBridge
+       
         publish_address_event("Deleted", userId, addressId, address_to_delete)
         
         return {
@@ -139,7 +159,6 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
     logger.debug(f"Incoming event: {json.dumps(event)}")
     
     try:
-        # Route based on HTTP method and path
         http_method = event.get('httpMethod', '')
         path = event.get('path', '')
         path_parameters = event.get('pathParameters') or {}

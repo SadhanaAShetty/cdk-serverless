@@ -53,14 +53,37 @@ def publish_address_event(event_type, user_id, address_id, address_data):
         logger.error(f"Failed to publish {event_type} event: {str(e)}")
         return None
 
+def extract_user_id_from_event(event):
+    """Helper function to extract userId from various event formats"""
+    try:
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+
+        if isinstance(authorizer, dict):
+            if 'userId' in authorizer:
+                return authorizer['userId']
+            
+  
+            claims = authorizer.get('claims', {})
+            if isinstance(claims, str):
+                try:
+                    claims = json.loads(claims)
+                except:
+                    pass
+            
+            if isinstance(claims, dict) and 'sub' in claims:
+                return claims['sub']
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error extracting userId: {e}")
+        return None
+
 @tracer.capture_method
 def edit_user_address(event, addressId):
     try:
-        # Get user ID from authorizer
-        request_context = event.get('requestContext', {})
-        authorizer = request_context.get('authorizer', {})
-        claims = authorizer.get('claims', {})
-        userId = claims.get("sub")
+        userId = extract_user_id_from_event(event)
         
         if not userId:
             return {
@@ -77,7 +100,7 @@ def edit_user_address(event, addressId):
             body_str = '{}'
         data = json.loads(body_str)
         
-        # Check if address exists and belongs to user
+
         existing_response = table.get_item(
             Key={
                 "userId": userId,
@@ -95,14 +118,14 @@ def edit_user_address(event, addressId):
                 }
             }
         
-        # Build update expression
+    
         update_expression = "SET updatedAt = :updatedAt"
         expression_values = {
             ":updatedAt": datetime.utcnow().isoformat()
         }
         expression_names = {}
         
-        # Update fields if provided
+    
         updatable_fields = [
             "addressLine1", "addressLine2", "city", "state", 
             "zipCode", "country", "isDefault", "label"
@@ -110,7 +133,6 @@ def edit_user_address(event, addressId):
         
         for field in updatable_fields:
             if field in data:
-                # Use ExpressionAttributeNames for reserved keywords
                 if field == "state":
                     update_expression += f", #state = :{field}"
                     expression_names["#state"] = "state"
@@ -118,7 +140,7 @@ def edit_user_address(event, addressId):
                     update_expression += f", {field} = :{field}"
                 expression_values[f":{field}"] = data[field]
         
-        # Update the address
+        
         update_params = {
             "Key": {
                 "userId": userId,
@@ -129,7 +151,7 @@ def edit_user_address(event, addressId):
             "ReturnValues": "ALL_NEW"
         }
         
-        # Add ExpressionAttributeNames only if we have reserved keywords
+
         if expression_names:
             update_params["ExpressionAttributeNames"] = expression_names
             
@@ -137,7 +159,7 @@ def edit_user_address(event, addressId):
         
         updated_address = response["Attributes"]
         
-        # Publish event to EventBridge
+
         try:
             publish_address_event("Updated", userId, addressId, updated_address)
         except Exception as event_error:
@@ -179,7 +201,6 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
     logger.debug(f"Incoming event: {json.dumps(event)}")
     
     try:
-        # Route based on HTTP method and path
         http_method = event.get('httpMethod', '')
         path = event.get('path', '')
         path_parameters = event.get('pathParameters') or {}

@@ -67,7 +67,39 @@ def publish_address_event(event_type, user_id, address_id, address_data):
 @app.post("/addresses")
 def add_user_address():
     try:
-        userId = app.current_event.request_context.authorizer.claims.get("sub")
+        
+        logger.info("Extracting user ID from authorizer context")
+        
+        request_context = app.current_event.request_context
+        authorizer = getattr(request_context, 'authorizer', {})
+        
+        userId = None
+        
+        # Try to get userId from the context directly (set by our authorizer)
+        if hasattr(authorizer, 'userId'):
+            userId = authorizer.userId
+            logger.info(f"Got userId from authorizer.userId: {userId}")
+        elif isinstance(authorizer, dict) and 'userId' in authorizer:
+            userId = authorizer['userId']
+            logger.info(f"Got userId from authorizer['userId']: {userId}")
+        else:
+            # Fallback to parsing claims
+            try:
+                if hasattr(authorizer, 'claims'):
+                    claims = authorizer.claims
+                else:
+                    claims = authorizer.get('claims', {}) if isinstance(authorizer, dict) else {}
+                
+                if isinstance(claims, str):
+                    claims = json.loads(claims)
+                
+                userId = claims.get("sub") if isinstance(claims, dict) else None
+                logger.info(f"Got userId from claims parsing: {userId}")
+            except Exception as e:
+                logger.error(f"Error parsing claims: {e}")
+        
+        logger.info(f"Final userId: {userId}")
+        
         if not userId:
             return Response(
                 status_code=HTTPStatus.UNAUTHORIZED,

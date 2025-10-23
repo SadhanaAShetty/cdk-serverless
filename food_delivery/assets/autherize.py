@@ -42,7 +42,7 @@ def validate_token(token, region):
     claims = jwt.get_unverified_claims(token)
     if time.time() > claims.get("exp", 0):
         raise Exception("Token expired")
-    
+
     token_aud = claims.get("aud")
     if token_aud != APP_CLIENT_ID and not token_aud.startswith(USER_POOL_ID):
         raise Exception(
@@ -113,17 +113,12 @@ def lambda_handler(event, context):
         "claims": json.dumps({"sub": principal_id}),
     }
 
+    
+    all_resources = [f"{base_arn}/*"]
+
     if is_admin:
-        admin_resources = [f"{base_arn}/*"]
-        print(f"Admin resources: {admin_resources}")
-        return generate_policy(principal_id, "Allow", admin_resources, user_context)
+        print(f"Admin access granted to: {all_resources}")
+        return generate_policy(principal_id, "Allow", all_resources, user_context)
     else:
-        regular_resources = [
-            f"{base_arn}/GET/orders",
-            f"{base_arn}/POST/orders",
-            f"{base_arn}/GET/orders/*",
-            f"{base_arn}/PUT/orders/*",
-            f"{base_arn}/DELETE/orders/*",
-        ]
-        print(f"Regular user resources: {regular_resources}")
-        return generate_policy(principal_id, "Allow", regular_resources, user_context)
+        print(f"Regular user access granted to: {all_resources}")
+        return generate_policy(principal_id, "Allow", all_resources, user_context)

@@ -25,7 +25,6 @@ class DecimalEncoder(json.JSONEncoder):
 @app.get("/orders")
 def list_orders_handler():
     try:
-        # Extract userId from authorizer claims
         authorizer = getattr(app.current_event.request_context, 'authorizer', None)
         claims = getattr(authorizer, 'claims', {}) if authorizer else {}
         userId = claims.get("sub")

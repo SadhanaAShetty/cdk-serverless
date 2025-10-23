@@ -91,7 +91,7 @@ def handle_create_order_direct(event, context):
         logger.info("Processing direct order creation")
         authorizer = event.get("requestContext", {}).get("authorizer", {})
 
-        # Cognito sometimes sends claims as JSON string
+       
         claims_raw = authorizer.get("claims", {})
         if isinstance(claims_raw, str):
             claims = json.loads(claims_raw)
@@ -129,7 +129,6 @@ def handle_create_order_direct(event, context):
                     order_item["price"] = Decimal(str(order_item["price"]))
                 order_items.append(order_item)
             else:
-                # Handle non-dict item directly
                 order_items.append(item)
 
         item_to_store = {

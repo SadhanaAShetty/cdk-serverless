@@ -16,7 +16,6 @@ table = dynamodb.Table(os.environ["TABLE_NAME"])
 @app.get("/orders/{orderId}")
 def get_order_handler():
     try:
-        # Extract userId from authorizer claims
         authorizer = getattr(app.current_event.request_context, 'authorizer', None)
         claims = getattr(authorizer, 'claims', {}) if authorizer else {}
         userId = claims.get("sub")
