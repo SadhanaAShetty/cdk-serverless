@@ -16,20 +16,9 @@ table = dynamodb.Table(os.environ["TABLE_NAME"])
 @app.get("/orders/{orderId}")
 def get_order_handler():
     try:
-
-        authorizer = getattr(app.current_event.request_context, 'authorizer', {})
-        userId = None
-        
-
-        if hasattr(authorizer, 'claims') and authorizer.claims:
-            userId = authorizer.claims.get("sub")
-        elif hasattr(authorizer, 'userId'):
-            userId = authorizer.userId
-        elif isinstance(authorizer, dict):
-            userId = authorizer.get('userId')
-        
-        logger.info(f"Get order - Authorizer context: {authorizer}")
-        logger.info(f"Get order - Extracted userId: {userId}")
+        authorizer = getattr(app.current_event.request_context, 'authorizer', None)
+        claims = getattr(authorizer, 'claims', {}) if authorizer else {}
+        userId = claims.get("sub")
         
         if not userId:
             return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
