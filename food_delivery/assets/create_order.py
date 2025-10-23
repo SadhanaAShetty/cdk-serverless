@@ -88,19 +88,28 @@ def lambda_handler(event, context):
 
 def handle_create_order_direct(event, context):
     try:
-        request_context = event.get("requestContext", {})
-        authorizer = request_context.get("authorizer", {})
-        claims = authorizer.get("claims", {})
+        logger.info("Processing direct order creation")
+        authorizer = event.get("requestContext", {}).get("authorizer", {})
+
+        # Cognito sometimes sends claims as JSON string
+        claims_raw = authorizer.get("claims", {})
+        if isinstance(claims_raw, str):
+            claims = json.loads(claims_raw)
+        else:
+            claims = claims_raw
+
         userId = claims.get("sub")
-        
+        logger.info(f"Extracted userId: {userId}")
+
         if not userId:
             return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
 
         body = event.get("body")
-        if not body:
-            return {"statusCode": 400, "body": json.dumps({"error": "Missing request body"})}
-            
-        data = json.loads(body)
+        if isinstance(body, str):
+            data = json.loads(body)
+        else:
+            data = body
+
         required_keys = ["restaurantId", "totalAmount", "orderItems"]
         for key in required_keys:
             if key not in data:
@@ -112,13 +121,16 @@ def handle_create_order_direct(event, context):
         order_id = str(uuid.uuid4())
         order_time = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-
         order_items = []
         for item in data["orderItems"]:
-            order_item = item.copy()
-            if "price" in order_item:
-                order_item["price"] = Decimal(str(order_item["price"]))
-            order_items.append(order_item)
+            if isinstance(item, dict):
+                order_item = item.copy()
+                if "price" in order_item:
+                    order_item["price"] = Decimal(str(order_item["price"]))
+                order_items.append(order_item)
+            else:
+                # Handle non-dict item directly
+                order_items.append(item)
 
         item_to_store = {
             "userId": userId,
@@ -131,11 +143,7 @@ def handle_create_order_direct(event, context):
             "orderTime": order_time
         }
 
-
-        dynamodb = boto3.resource("dynamodb")
-        test_table = dynamodb.Table(os.environ["TABLE_NAME"])
-        
-        test_table.put_item(
+        table.put_item(
             Item=item_to_store,
             ConditionExpression="attribute_not_exists(orderId) AND attribute_not_exists(userId)"
         )
