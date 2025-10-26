@@ -82,6 +82,7 @@ class FoodDeliveryStack(Stack):
 
         #authorizer lambda 
         authorizer_lambda = lmbda.Function(self, "AuthorizerLambda",
+            function_name="AuthorizerLambda", 
             runtime=lmbda.Runtime.PYTHON_3_11,
             handler="autherize.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/assets"),
@@ -95,10 +96,10 @@ class FoodDeliveryStack(Stack):
 
         authorizer = apigw.TokenAuthorizer(self, "UserAuthorizer",
             handler=authorizer_lambda,
-            results_cache_ttl=Duration.seconds(0)
+            results_cache_ttl=Duration.seconds(100)
         )
 
-        #lambda for all api methods
+    
         #create_order Lambda
         create_order_lambda = lmbda.Function(
             self, "CreateOrderFunction",
@@ -387,9 +388,50 @@ class FoodDeliveryStack(Stack):
         dynamodb_throttle_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarms_topic))
 
 
-        CfnOutput(self, "UserPoolOutput", value=user_pool.user_pool_id, export_name="UserPool")
-        CfnOutput(self, "UserPoolClientOutput", value=user_pool_client.user_pool_client_id, export_name="UserPoolClient")
-        CfnOutput(self, "UserPoolAdminGroupOutput", value=group.group_name, export_name="UserPoolAdminGroup")
-        CfnOutput(self, "UsersTableOutput", value=table.table_name, export_name="UsersTable")
-        CfnOutput(self, "ApiUrlOutput", value=api.url, export_name="ApiUrl")
-        CfnOutput(self, "AlarmsTopicOutput", value=alarms_topic.topic_arn, export_name="AlarmsTopic")
+        CfnOutput(self, "UsersTableOutput",
+                description="DynamoDB Users table",
+                value=table.table_name,
+                export_name="FoodDelivery-UsersTable"
+            )
+
+        CfnOutput(self, "UsersFunctionOutput",
+                description="Lambda function used to perform actions on the users data",
+                value=create_order_lambda.function_name,
+                export_name="FoodDelivery-UsersFunction"
+            )
+
+        CfnOutput(self, "APIEndpointOutput",
+                description="API Gateway endpoint URL",
+                value=f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/dev",
+                export_name="FoodDelivery-APIEndpoint"
+            )
+
+        CfnOutput(self, "UserPoolIdOutput",
+                description="Cognito User Pool ID",
+                value=user_pool.user_pool_id,
+                export_name="FoodDelivery-UserPool"
+            )
+
+        CfnOutput(self, "UserPoolClientIdOutput",
+                description="Cognito User Pool Application Client ID",
+                value=user_pool_client.user_pool_client_id,
+                export_name="FoodDelivery-UserPoolClient"
+            )
+
+        CfnOutput(self, "UserPoolAdminGroupOutput",
+                description="User Pool group name for API administrators",
+                value=group.group_name,
+                export_name="FoodDelivery-UserPoolAdminGroup"
+            )
+
+        CfnOutput(self, "CognitoLoginURLOutput",
+                description="Cognito User Pool Application Client Hosted Login UI URL",
+                value=f"https://{domain.domain_name}.auth.{self.region}.amazoncognito.com/login?client_id={user_pool_client.user_pool_client_id}&response_type=code&redirect_uri=http://localhost",
+                export_name="FoodDelivery-CognitoLoginURL"
+            )
+
+        CfnOutput(self, "CognitoAuthCommandOutput",
+                description="AWS CLI command for Amazon Cognito User Pool authentication",
+                value=f"aws cognito-idp initiate-auth --auth-flow USER_PASSWORD_AUTH --client-id {user_pool_client.user_pool_client_id} --auth-parameters USERNAME=<username>,PASSWORD=<password> --query 'AuthenticationResult.IdToken' --output text",
+                export_name="FoodDelivery-CognitoAuthCommand"
+        )
