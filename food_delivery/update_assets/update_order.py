@@ -3,7 +3,7 @@ import boto3
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
-# Initialize Powertools utilities
+
 logger = Logger(service="order_updater")
 tracer = Tracer(service="order_updater")
 
@@ -15,10 +15,14 @@ table = dynamodb.Table(os.environ["TABLE_NAME"])
 @tracer.capture_lambda_handler
 def lambda_handler(event: dict, context: LambdaContext) -> dict:
     try:
+        logger.info(f"Received event: {event}")
+        
         order_data = event['detail']['data']
         order_id = order_data['orderId']
         user_id = order_data['userId']
         status = order_data['status']
+        
+        logger.info(f"Processing order update: orderId={order_id}, userId={user_id}, status={status}")
 
         key = {'userId': user_id, 'orderId': order_id}
         update_expression = "SET #data.#status = :status"
@@ -28,7 +32,7 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
         tracer.put_annotation("orderId", order_id)
         tracer.put_annotation("userId", user_id)
 
-        response = ddb_table.update_item(
+        response = table.update_item(
             Key=key,
             UpdateExpression=update_expression,
             ExpressionAttributeValues=expression_attribute_values,
