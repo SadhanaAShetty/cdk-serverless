@@ -1,22 +1,23 @@
 ## Description  
-Added User Profile features to the Food Delivery project.
-This includes functionality for users to add, edit, list, and delete addresses, as well as manage favorite restaurants.
-Also implemented unit tests and integration tests to ensure reliability and correctness of these new modules 
+Added EventBridge integration to the Food Delivery project for handling restaurant order updates.
+This includes creating a dedicated EventBridge event bus for routing order events, a Lambda function to update order status based on incoming events, and logic to publish order update events from the restaurant service.
+Integration tests were added to verify event routing and Lambda execution flow. 
 
 ---
 
 ## Changes  
-- [✅] Feature added — User address and favorites functionality
-- [✅] Tests — Added unit and integration tests for address and favorites APIs  
-- [ ] Refactor  
-- [ ] Tests  
-- [ ] Documentation  
+[✅] Feature added — EventBridge event bus for order updates
+[✅] Feature added — Lambda function to update order status
+[✅] Feature added — Event publishing for restaurant order updates
+[✅] Tests — Added integration tests for event publishing and status update flow
+[ ]Refactor
+[ ]Documentation
 
 ---
 
 ## Checklist  
 - [✅] Code follows project guidelines  
-- [✅] Unit tests added/updated  
+- [✅] integration tests added/updated  
 - [✅] All tests passing locally  
 - [ ] Documentation updated (if needed)  
 - [✅] No sensitive data committed  

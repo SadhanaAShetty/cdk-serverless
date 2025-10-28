@@ -27,7 +27,7 @@ def test_initial_order_status_in_dynamodb(global_config, capsys):
     assert stored_order['data']['orderId'] == order_id
     assert stored_order['data']['userId'] == user_id
     
-    print(f"✅ Initial order status verified: {stored_order['data']['status']}")
+    print(f"Initial order status verified: {stored_order['data']['status']}")
 
 
 def test_order_update_via_eventbridge(global_config, capsys):
