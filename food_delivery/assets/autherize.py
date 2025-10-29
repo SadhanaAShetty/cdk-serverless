@@ -113,12 +113,14 @@ def lambda_handler(event, context):
         "claims": json.dumps({"sub": principal_id}),
     }
 
-    
     all_resources = [f"{base_arn}/*"]
 
     if is_admin:
         print(f"Admin access granted to: {all_resources}")
-        return generate_policy(principal_id, "Allow", all_resources, user_context)
+        policy = generate_policy(principal_id, "Allow", all_resources, user_context)
     else:
         print(f"Regular user access granted to: {all_resources}")
-        return generate_policy(principal_id, "Allow", all_resources, user_context)
+        policy = generate_policy(principal_id, "Allow", all_resources, user_context)
+    
+    print(f"Generated policy: {json.dumps(policy, indent=2)}")
+    return policy
