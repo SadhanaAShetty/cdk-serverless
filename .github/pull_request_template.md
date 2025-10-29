@@ -1,7 +1,7 @@
 ## Description  
 Added EventBridge integration to the Food Delivery project for handling restaurant order updates.
 This includes creating a dedicated EventBridge event bus for routing order events, a Lambda function to update order status based on incoming events, and logic to publish order update events from the restaurant service.
-Integration tests were added to verify event routing and Lambda execution flow. 
+Integration tests were added to verify event routing and Lambda execution flow, and API polling for the latest order status.
 
 ---
 
