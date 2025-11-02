@@ -37,11 +37,11 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
                 
                 logger.info(f"Processing record: {record_data['event_id']}")
                 
-                # Process the delivery location data
+                #Process the delivery location data
                 processed_record = process_delivery_location(record_data)
                 processed_records.append(processed_record)
                 
-                # Update DynamoDB if this is rider location data
+              
                 if 'rider_id' in record_data['data']:
                     update_rider_position(record_data['data'])
                 
@@ -86,8 +86,19 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
 def process_delivery_location(record_data: dict) -> dict:
     try:
         data = record_data['data']
+
+        if 'delivery_id' not in data:
+            record_type = 'rider_update' if 'rider_id' in data else 'unknown'
+            logger.warning(f"Skipping non-delivery record of type: {record_type}")
+            return {
+                'event_id': record_data['event_id'],
+                'timestamp': record_data['timestamp'],
+                'type': record_type,
+                'summary': f"Skipped {record_type} record"
+            }
+
         
-        # Extract key information
+        #Extract key information
         delivery_id = data['delivery_id']
         order_id = data['order_id']
         status = data['status']
@@ -210,7 +221,7 @@ def update_rider_position(rider_data: dict):
             'last_updated_timestamp': int(datetime.utcnow().timestamp())
         }
         
-        # Update DynamoDB
+        #update DynamoDB
         table.put_item(Item=item)
         
         logger.info(f"Updated rider position for {rider_id}: lat={item['lat']}, lng={item['lng']}")
