@@ -1,15 +1,15 @@
 ## Description  
-Added EventBridge integration to the Food Delivery project for handling restaurant order updates.
-This includes creating a dedicated EventBridge event bus for routing order events, a Lambda function to update order status based on incoming events, and logic to publish order update events from the restaurant service.
-Integration tests were added to verify event routing and Lambda execution flow, and API polling for the latest order status.
+Added Kinesis integration to the Food Delivery project for tracking delivery driver addresses.
+This includes creating a dedicated Kinesis Stream for driver location events, a Lambda function to publish location updates to the stream, and a Lambda function to consume and process these events.
+Integration tests were added to verify end-to-end message flow from the producer Lambda to the consumer Lambda.
 
 ---
 
 ## Changes  
-[✅] Feature added — EventBridge event bus for order updates
-[✅] Feature added — Lambda function to update order status
-[✅] Feature added — Event publishing for restaurant order updates
-[✅] Tests — Added integration tests for event publishing and status update flow
+[✅] Feature added — Kinesis Stream for driver location events
+[✅] Feature added — Lambda function to publish driver location updates 
+[✅] Feature added — Lambda function to consume and process driver location events
+[✅] Tests — Added integration tests for producer-consumer flow
 [ ]Refactor
 [ ]Documentation
 
