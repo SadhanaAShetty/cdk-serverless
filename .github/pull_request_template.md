@@ -1,26 +1,24 @@
 ## Description  
-Added Kinesis integration to the Food Delivery project for tracking delivery driver addresses.
-This includes creating a dedicated Kinesis Stream for driver location events, a Lambda function to publish location updates to the stream, and a Lambda function to consume and process these events.
-Integration tests were added to verify end-to-end message flow from the producer Lambda to the consumer Lambda.
+Refactored the Food Delivery project to use a reusable Construct for DynamoDB table creation.
+This improves modularity and reusability across stacks.
+Also updated the README to document the construct usage and integration details.
 
 ---
 
 ## Changes  
-[✅] Feature added — Kinesis Stream for driver location events
-[✅] Feature added — Lambda function to publish driver location updates 
-[✅] Feature added — Lambda function to consume and process driver location events
-[✅] Tests — Added integration tests for producer-consumer flow
-[ ]Refactor
-[ ]Documentation
+[✅] Refactor — Created a reusable Construct (DynamoTable) for DynamoDB table setup
+[✅] Update — Integrated the Construct into the Food Delivery Stack
+[✅] Documentation — Updated README to include construct usage instructions
+
 
 ---
 
 ## Checklist  
-- [✅] Code follows project guidelines  
-- [✅] integration tests added/updated  
-- [✅] All tests passing locally  
-- [ ] Documentation updated (if needed)  
-- [✅] No sensitive data committed  
+[✅] Code follows project structure and style guidelines
+[✅] Constructs properly initialized with super().__init__()
+[✅] Verified CDK synth and deploy succeed locally
+[✅] README updated with new construct usage details
+[✅] No sensitive data committed 
 
 ---
 
