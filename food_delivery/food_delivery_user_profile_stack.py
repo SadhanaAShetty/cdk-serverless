@@ -7,6 +7,7 @@ from aws_cdk import (
     aws_events as events,
 )
 from constructs import Construct
+from constructs.ddb import DynamoTable
 
 
 class AddressStack(Stack):
@@ -15,20 +16,27 @@ class AddressStack(Stack):
 
 
         # DynamoDB Table for Addresses
-        address_table = dynamodb.Table(
-            self, "UserAddressesTable",
-            table_name="UserAddressesTable",
-            partition_key=dynamodb.Attribute(
-                name="userId",
-                type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name="addressId",
-                type=dynamodb.AttributeType.STRING
-            ),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY
+        address_table = DynamoTable(
+            self,
+            "UserAddressesTable",
+            table_name="UserOrdersTable",
+            partition_key="userId",
+            sort_key="addressId"
         )
+        # address_table = dynamodb.Table(
+        #     self, "UserAddressesTable",
+        #     table_name="UserAddressesTable",
+        #     partition_key=dynamodb.Attribute(
+        #         name="userId",
+        #         type=dynamodb.AttributeType.STRING
+        #     ),
+        #     sort_key=dynamodb.Attribute(
+        #         name="addressId",
+        #         type=dynamodb.AttributeType.STRING
+        #     ),
+        #     billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+        #     removal_policy=RemovalPolicy.DESTROY
+        # )
 
         #importing authorizer lambda from main stack
         authorizer_lambda = lmbda.Function.from_function_name(

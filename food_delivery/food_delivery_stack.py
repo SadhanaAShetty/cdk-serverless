@@ -13,27 +13,38 @@ from aws_cdk import (
     aws_cloudwatch_actions as cloudwatch_actions
 )
 from constructs import Construct
+from constructs.ddb import DynamoTable
 
 
 class FoodDeliveryStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        #dynamoDB Table
-        table = dynamodb.Table(
-            self, "UserOrdersTable",
+
+        #constructs
+        table = DynamoTable(
+            self,
+            "UserOrdersTable",
             table_name="UserOrdersTable",
-            partition_key=dynamodb.Attribute(
-                name="userId",
-                type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name="orderId",
-                type=dynamodb.AttributeType.STRING
-            ),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY 
+            partition_key="userId",
+            sort_key="orderId"
         )
+
+        #dynamoDB Table
+        # table = dynamodb.Table(
+        #     self, "UserOrdersTable",
+        #     table_name="UserOrdersTable",
+        #     partition_key=dynamodb.Attribute(
+        #         name="userId",
+        #         type=dynamodb.AttributeType.STRING
+        #     ),
+        #     sort_key=dynamodb.Attribute(
+        #         name="orderId",
+        #         type=dynamodb.AttributeType.STRING
+        #     ),
+        #     billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+        #     removal_policy=RemovalPolicy.DESTROY 
+        # )
 
         powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
             self,
