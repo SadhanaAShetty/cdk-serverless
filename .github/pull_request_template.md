@@ -1,29 +1,29 @@
-## Description  
-Added Kinesis integration to the Food Delivery project for tracking delivery driver addresses.
-This includes creating a dedicated Kinesis Stream for driver location events, a Lambda function to publish location updates to the stream, and a Lambda function to consume and process these events.
-Integration tests were added to verify end-to-end message flow from the producer Lambda to the consumer Lambda.
+## Description
+Describe the changes made in this PR, including context or motivation.  
+Include details about features, bug fixes, or refactors.  
+Mention if any unit or integration tests were added.
 
 ---
 
-## Changes  
-[✅] Feature added — Kinesis Stream for driver location events
-[✅] Feature added — Lambda function to publish driver location updates 
-[✅] Feature added — Lambda function to consume and process driver location events
-[✅] Tests — Added integration tests for producer-consumer flow
-[ ]Refactor
-[ ]Documentation
+## Changes
+[ ] Feature added  
+[ ] Bug fix  
+[ ] Refactor  
+[ ] Tests added/updated  
+[ ] Documentation updated  
+[ ] Other (please describe):  
 
 ---
 
-## Checklist  
-- [✅] Code follows project guidelines  
-- [✅] integration tests added/updated  
-- [✅] All tests passing locally  
-- [ ] Documentation updated (if needed)  
-- [✅] No sensitive data committed  
+## Checklist
+- [ ] Code follows project guidelines  
+- [ ] Unit/integration tests added or updated  
+- [ ] All tests pass locally  
+- [ ] Documentation updated if needed  
+- [ ] No sensitive data committed  
 
 ---
 
-## How to Test  
-Steps for reviewers to test this PR:  
-
+## How to Test
+Provide steps for reviewers to verify the changes, including any setup or test data required.  
+Include instructions for running unit tests, integration tests, or manual testing.

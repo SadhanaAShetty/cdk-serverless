@@ -9,6 +9,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb
 )
 from constructs import Construct
+from constructs.ddb import DynamoTable
 
 class FoodDeliveryDataStream(Stack):
 
@@ -25,18 +26,13 @@ class FoodDeliveryDataStream(Stack):
         )
 
         #DynamoDB table for rider positions
-        riders_position_table = dynamodb.Table(
+        riders_position_table = DynamoTable(
             self,
             "RidersPositionTable",
             table_name="RidersPositionTable",
-            partition_key=dynamodb.Attribute(
-                name="rider_id",
-                type=dynamodb.AttributeType.STRING
-            ),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY
+            partition_key="rider_id"
         )
-
+        
         #PowerTools Layer
         powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
             self,

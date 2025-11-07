@@ -14,6 +14,7 @@ from aws_cdk import (
     aws_cloudwatch_actions as cloudwatch_actions,
 )
 from constructs import Construct
+from constructs.ddb import DynamoTable
 
 
 class FavoritesStack(Stack):
@@ -33,20 +34,14 @@ class FavoritesStack(Stack):
         )
 
         # DynamoDB Table for Favorites
-        favorites_table = dynamodb.Table(
-            self, "UserFavoritesTable",
-            table_name="UserFavoritesTable",
-            partition_key=dynamodb.Attribute(
-                name="userId",
-                type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name="favoriteId",
-                type=dynamodb.AttributeType.STRING
-            ),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY
+        favorites_table = DynamoTable(
+            self,
+            "UserFavoritesTable",
+            table_name="UserOrdersTable",
+            partition_key="userId",
+            sort_key="favoriteId"
         )
+        
 
         #Dead Letter Queue for failed favorites processing
         favorites_dlq = sqs.Queue(
