@@ -45,6 +45,7 @@ class DynamoTable(Construct):
             ) if sort_key else None,
             billing_mode=billing_mode,
             removal_policy=removal_policy,
+            **kwargs
         )
 
         self.table_name = self.table.table_name
