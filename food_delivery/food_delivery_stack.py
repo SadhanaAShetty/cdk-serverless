@@ -30,21 +30,7 @@ class FoodDeliveryStack(Stack):
             sort_key="orderId"
         )
 
-        #dynamoDB Table
-        # table = dynamodb.Table(
-        #     self, "UserOrdersTable",
-        #     table_name="UserOrdersTable",
-        #     partition_key=dynamodb.Attribute(
-        #         name="userId",
-        #         type=dynamodb.AttributeType.STRING
-        #     ),
-        #     sort_key=dynamodb.Attribute(
-        #         name="orderId",
-        #         type=dynamodb.AttributeType.STRING
-        #     ),
-        #     billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-        #     removal_policy=RemovalPolicy.DESTROY 
-        # )
+        
 
         powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
             self,

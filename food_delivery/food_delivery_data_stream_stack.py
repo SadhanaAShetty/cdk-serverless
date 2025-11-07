@@ -32,18 +32,7 @@ class FoodDeliveryDataStream(Stack):
             table_name="RidersPositionTable",
             partition_key="rider_id"
         )
-        # riders_position_table = dynamodb.Table(
-        #     self,
-        #     "RidersPositionTable",
-        #     table_name="RidersPositionTable",
-        #     partition_key=dynamodb.Attribute(
-        #         name="rider_id",
-        #         type=dynamodb.AttributeType.STRING
-        #     ),
-        #     billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-        #     removal_policy=RemovalPolicy.DESTROY
-        # )
-
+        
         #PowerTools Layer
         powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
             self,

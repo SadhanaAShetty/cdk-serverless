@@ -41,20 +41,7 @@ class FavoritesStack(Stack):
             partition_key="userId",
             sort_key="favoriteId"
         )
-        # favorites_table = dynamodb.Table(
-        #     self, "UserFavoritesTable",
-        #     table_name="UserFavoritesTable",
-        #     partition_key=dynamodb.Attribute(
-        #         name="userId",
-        #         type=dynamodb.AttributeType.STRING
-        #     ),
-        #     sort_key=dynamodb.Attribute(
-        #         name="favoriteId",
-        #         type=dynamodb.AttributeType.STRING
-        #     ),
-        #     billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-        #     removal_policy=RemovalPolicy.DESTROY
-        # )
+        
 
         #Dead Letter Queue for failed favorites processing
         favorites_dlq = sqs.Queue(
