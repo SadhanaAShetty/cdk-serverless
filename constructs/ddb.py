@@ -1,19 +1,20 @@
-from aws_cdk import RemovalPolicy
-from aws_cdk.aws_dynamodb import TableV2, AttributeType
+from aws_cdk import (
+    RemovalPolicy,
+    aws_dynamodb as dynamodb,
+)
 from constructs import Construct
 
-class DynamoTable(TableV2):
+
+class DynamoTable(dynamodb.TableV2):
     """
-    A reusable CDK construct for creating a DynamoDB table with an optional sort key.
+    Reusable DynamoDB TableV2 construct with optional sort key and flexible key types.
 
-    Defaults:
-    - Billing mode: PAY_PER_REQUEST
-    - Removal policy: DESTROY
-    - Partition key required, sort key optional
-
-    Inherits from TableV2
+    Features:
+    - On-demand billing (PAY_PER_REQUEST)
+    - Configurable removal policy (default: DESTROY)
+    - Partition and sort key types can be STRING, NUMBER, or BINARY
+    - Can be used directly in stacks without extra configuration
     """
-
     def __init__(
         self,
         scope: Construct,
@@ -21,23 +22,31 @@ class DynamoTable(TableV2):
         *,
         table_name: str,
         partition_key: str,
-        partition_key_type: AttributeType = AttributeType.STRING,
+        partition_key_type: dynamodb.AttributeType = dynamodb.AttributeType.STRING,
         sort_key: str = None,
-        sort_key_type: AttributeType = AttributeType.STRING,
+        sort_key_type: dynamodb.AttributeType = dynamodb.AttributeType.STRING,
         removal_policy: RemovalPolicy = RemovalPolicy.DESTROY,
-        billing_mode=None, 
         **kwargs,
     ):
-        partition_attr = {"name": partition_key, "type": partition_key_type}
-        sort_attr = {"name": sort_key, "type": sort_key_type} if sort_key else None
+        partition_key_attr = dynamodb.Attribute(
+            name=partition_key,
+            type=partition_key_type
+        )
+
+        sort_key_attr = None
+        if sort_key:
+            sort_key_attr = dynamodb.Attribute(
+                name=sort_key,
+                type=sort_key_type
+            )
 
         super().__init__(
             scope,
             id,
             table_name=table_name,
-            partition_key=partition_attr,
-            sort_key=sort_attr,
-            billing_mode=billing_mode,
+            partition_key=partition_key_attr,
+            sort_key=sort_key_attr,
+            billing=dynamodb.Billing.on_demand(),
             removal_policy=removal_policy,
             **kwargs
         )
