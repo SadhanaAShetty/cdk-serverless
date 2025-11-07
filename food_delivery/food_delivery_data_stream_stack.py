@@ -28,8 +28,8 @@ class FoodDeliveryDataStream(Stack):
         #DynamoDB table for rider positions
         riders_position_table = DynamoTable(
             self,
-            "UserOrdersTable",
-            table_name="UserOrdersTable",
+            "RidersPositionTable",
+            table_name="RidersPositionTable",
             partition_key="rider_id"
         )
         # riders_position_table = dynamodb.Table(
