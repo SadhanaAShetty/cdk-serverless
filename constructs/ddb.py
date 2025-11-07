@@ -1,20 +1,17 @@
-from aws_cdk import (
-    RemovalPolicy,
-    aws_dynamodb as dynamodb,
-)
+from aws_cdk import RemovalPolicy
+from aws_cdk.aws_dynamodb import TableV2, AttributeType
 from constructs import Construct
 
-
-class DynamoTable(Construct):
+class DynamoTable(TableV2):
     """
     A reusable CDK construct for creating a DynamoDB table with an optional sort key.
 
     Defaults:
-    - Billing mode: PAY_PER_REQUEST  
-    - Removal policy: DESTROY  
-    - Partition key required, sort key optional  
+    - Billing mode: PAY_PER_REQUEST
+    - Removal policy: DESTROY
+    - Partition key required, sort key optional
 
-    Includes helper methods to grant read or read/write permissions to other AWS resources.
+    Inherits from TableV2
     """
 
     def __init__(
@@ -24,36 +21,23 @@ class DynamoTable(Construct):
         *,
         table_name: str,
         partition_key: str,
-        partition_key_type: dynamodb.AttributeType = dynamodb.AttributeType.STRING,
+        partition_key_type: AttributeType = AttributeType.STRING,
         sort_key: str = None,
-        sort_key_type: dynamodb.AttributeType = dynamodb.AttributeType.STRING,
+        sort_key_type: AttributeType = AttributeType.STRING,
         removal_policy: RemovalPolicy = RemovalPolicy.DESTROY,
-        billing_mode: dynamodb.BillingMode = dynamodb.BillingMode.PAY_PER_REQUEST,
+        billing_mode=None, 
         **kwargs,
     ):
-        super().__init__(scope, id, **kwargs)
+        partition_attr = {"name": partition_key, "type": partition_key_type}
+        sort_attr = {"name": sort_key, "type": sort_key_type} if sort_key else None
 
-        self.table = dynamodb.Table(
-            self,
-            "Table",
+        super().__init__(
+            scope,
+            id,
             table_name=table_name,
-            partition_key=dynamodb.Attribute(
-                name=partition_key,
-                type=partition_key_type
-            ),
-            sort_key=dynamodb.Attribute(
-                name=sort_key,
-                type=sort_key_type
-            ) if sort_key else None,
+            partition_key=partition_attr,
+            sort_key=sort_attr,
             billing_mode=billing_mode,
             removal_policy=removal_policy,
             **kwargs
         )
-
-        self.table_name = self.table.table_name
-
-    def grant_read_write_data(self, grantee):
-        return self.table.grant_read_write_data(grantee)
-
-    def grant_read_data(self, grantee):
-        return self.table.grant_read_data(grantee)
