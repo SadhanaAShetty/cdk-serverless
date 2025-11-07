@@ -24,7 +24,9 @@ class DynamoTable(Construct):
         *,
         table_name: str,
         partition_key: str,
+        partition_key_type: dynamodb.AttributeType = dynamodb.AttributeType.STRING,
         sort_key: str = None,
+        sort_key_type: dynamodb.AttributeType = dynamodb.AttributeType.STRING,
         removal_policy: RemovalPolicy = RemovalPolicy.DESTROY,
         billing_mode: dynamodb.BillingMode = dynamodb.BillingMode.PAY_PER_REQUEST,
         **kwargs,
@@ -37,11 +39,11 @@ class DynamoTable(Construct):
             table_name=table_name,
             partition_key=dynamodb.Attribute(
                 name=partition_key,
-                type=dynamodb.AttributeType.STRING
+                type=partition_key_type
             ),
             sort_key=dynamodb.Attribute(
                 name=sort_key,
-                type=dynamodb.AttributeType.STRING
+                type=sort_key_type
             ) if sort_key else None,
             billing_mode=billing_mode,
             removal_policy=removal_policy,
