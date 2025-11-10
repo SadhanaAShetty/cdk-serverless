@@ -10,6 +10,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from cdk_nag import NagSuppressions
 
 class FoodDeliveryDataStream(Stack):
 
@@ -44,7 +45,7 @@ class FoodDeliveryDataStream(Stack):
         kinesis_producer = lmbda.Function(
             self, "KinesisProducer",
             function_name="kinesis_producer",
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="kinesis_producer.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/data_stream_assets"),
             layers=[powertools_layer],
@@ -58,7 +59,7 @@ class FoodDeliveryDataStream(Stack):
         kinesis_consumer = lmbda.Function(
             self, "UpdateRiderLocation",
             function_name="UpdateRiderLocation",  
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="kinesis_consumer.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/data_stream_assets"),
             layers=[powertools_layer],
@@ -103,6 +104,21 @@ class FoodDeliveryDataStream(Stack):
                 batch_size=10,
                 starting_position=lmbda.StartingPosition.LATEST
             )
+        )
+
+        #Nag Suppression
+        lambda_functions = [
+            kinesis_consumer,
+            kinesis_producer
+        ]
+
+        NagSuppressions.add_resource_suppressions(
+            [fn.role for fn in lambda_functions if fn.role],
+            suppressions=[{
+                "id": "AwsSolutions-IAM4",
+                "reason": "AWSLambdaBasicExecutionRole is the minimal AWS managed policy providing only CloudWatch Logs access, equivalent to a least-privilege custom role."
+            }],
+            apply_to_children=True
         )
 
         # Outputs
