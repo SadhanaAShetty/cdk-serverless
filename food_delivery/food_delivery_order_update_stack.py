@@ -7,6 +7,8 @@ from aws_cdk import (
     aws_dynamodb as dynamodb
 )
 from constructs import Construct
+from cdk_nag import NagSuppressions
+from constructs.ddb import DynamoTable
 
 class FoodDeliveryOrderUpdate(Stack):
 
@@ -36,7 +38,7 @@ class FoodDeliveryOrderUpdate(Stack):
         update_lambda = lmbda.Function(
             self, "UpdateOrderLambda",
             function_name="update_order",
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="update_order.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/update_assets"),
             layers=[powertools_layer],
@@ -45,6 +47,16 @@ class FoodDeliveryOrderUpdate(Stack):
             },
             timeout=Duration.seconds(10)
         )
+
+        #Nag Suppression
+        NagSuppressions.add_resource_suppressions(
+            update_lambda.role,
+            suppressions=[{
+                "id": "AwsSolutions-IAM4",
+                "reason": "Lambda uses AWSLambdaBasicExecutionRole, which only grants CloudWatch Logs access and is equivalent to a minimal custom policy."
+            }]
+        )
+
 
   
         orders_ddb_table.grant_read_write_data(update_lambda)
