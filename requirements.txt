@@ -14,3 +14,5 @@ aws-xray-sdk
 python-jose
 requests
 
+cdk-nag>=2.27.0
+
