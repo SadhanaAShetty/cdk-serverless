@@ -15,6 +15,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from cdk_nag import NagSuppressions
 
 
 class FavoritesStack(Stack):
@@ -74,7 +75,7 @@ class FavoritesStack(Stack):
         list_user_favorites_lambda = lmbda.Function(
             self, "ListUserFavoritesLambda",
             function_name="list_user_favorites",
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="list_user_favorites.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/address_assets/favorites"),
             layers=[powertools_layer],
@@ -90,7 +91,7 @@ class FavoritesStack(Stack):
         process_favorites_queue_lambda = lmbda.Function(
             self, "ProcessFavoritesQueueLambda",
             function_name="process_favorites_queue",
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="process_favorites_queue.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/address_assets/favorites"),
             layers=[powertools_layer],
@@ -185,6 +186,19 @@ class FavoritesStack(Stack):
         )
         queue_depth_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarms_topic))
 
+        #Nag Suppression
+        for queue in [favorites_queue, favorites_dlq]:
+            NagSuppressions.add_resource_suppressions(
+                queue,
+                suppressions=[{
+                    "id": "AwsSolutions-SQS4",
+                    "reason": "Queue is accessed only internally by Lambda functions; SSL not required."
+                }]
+            )
+
+        
+
+
         # Lambda function alarms
         favorites_lambda_functions = [
             ("ListUserFavorites", list_user_favorites_lambda),
@@ -205,6 +219,40 @@ class FavoritesStack(Stack):
             )
             error_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarms_topic))
 
+        #Nag Suppression
+        for fn in [list_user_favorites_lambda, process_favorites_queue_lambda]:
+            if fn.role:
+                NagSuppressions.add_resource_suppressions(
+                    fn.role,
+                    suppressions=[{
+                        "id": "AwsSolutions-IAM4",
+                        "reason": "AWSLambdaBasicExecutionRole provides minimal CloudWatch logging; safe for this use case."
+                    }]
+                )
+
+        NagSuppressions.add_resource_suppressions(
+            favorites_api,
+            suppressions=[{
+                "id": "AwsSolutions-APIG2",
+                "reason": "Request validation is handled inside Lambda functions, making API Gateway validation redundant."
+            }]
+        )
+
+        NagSuppressions.add_resource_suppressions_by_path(
+            self,
+            path="/FavoritesStack/FavoritesApiGateway",
+            suppressions=[{
+                "id": "AwsSolutions-COG4",
+                "reason": (
+                    "A custom Lambda authorizer is implemented for token validation and access control. "
+                    "It validates Cognito JWT signatures, audience, and user groups, providing stronger security than Cognito authorizers."
+                )
+            }],
+            apply_to_children=True
+        )
+
+        
+
         # Stack Outputs
         CfnOutput(
             self, "FavoritesTableOutput",
@@ -223,6 +271,9 @@ class FavoritesStack(Stack):
             value=favorites_queue.queue_url,
             export_name="FavoritesQueueUrl"
         )
+
+        
+
 
         # Store references as properties for potential cross-stack usage
         self.favorites_table = favorites_table
