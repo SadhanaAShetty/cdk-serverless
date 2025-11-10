@@ -55,7 +55,7 @@ class AddressStack(Stack):
         add_address_lambda = lmbda.Function(
             self, "AddAddressLambda",
             function_name="add_user_address",
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="add_user_address.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/address_assets/address"),
             layers=[powertools_layer],
@@ -72,7 +72,7 @@ class AddressStack(Stack):
         edit_address_lambda = lmbda.Function(
             self, "EditAddressLambda",
             function_name="edit_user_address",
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="edit_user_address.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/address_assets/address"),
             layers=[powertools_layer],
@@ -89,7 +89,7 @@ class AddressStack(Stack):
         delete_address_lambda = lmbda.Function(
             self, "DeleteAddressLambda",
             function_name="delete_user_address",
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="delete_user_address.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/address_assets/address"),
             layers=[powertools_layer],
@@ -106,7 +106,7 @@ class AddressStack(Stack):
         list_user_addresses_lambda = lmbda.Function(
             self, "ListUserAddressesLambda",
             function_name="list_user_addresses",
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="list_user_addresses.lambda_handler",
             code=lmbda.Code.from_asset("food_delivery/address_assets/address"),
             layers=[powertools_layer],
@@ -116,8 +116,23 @@ class AddressStack(Stack):
             timeout=Duration.seconds(10)
         )
         address_table.grant_read_data(list_user_addresses_lambda)
+        #Nag Suppression
+        lambda_functions = [
+                add_address_lambda,
+                edit_address_lambda,
+                delete_address_lambda,
+                list_user_addresses_lambda
+            ]
 
-      
+        for fn in lambda_functions:
+            if fn.role:
+                NagSuppressions.add_resource_suppressions(
+                        fn.role,
+                        suppressions=[{
+                            "id": "AwsSolutions-IAM4",
+                            "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for CloudWatch logging, equivalent to a least-privilege custom role."
+                        }]
+                    )
 
         #API Gateway for Address Management
         address_api = apigw.RestApi(
@@ -172,6 +187,7 @@ class AddressStack(Stack):
             authorization_type=apigw.AuthorizationType.CUSTOM,
             authorizer=authorizer,
         )
+        
 
         #API Gateway Deployment and Stage
         deployment = apigw.Deployment(self, "AddressApiDeployment", api=address_api)
@@ -196,6 +212,38 @@ class AddressStack(Stack):
             metrics_enabled=True
         )
         address_api.deployment_stage = stage
+
+        #Nag Suppression
+        NagSuppressions.add_resource_suppressions(
+            address_api,
+            suppressions=[{
+                "id": "AwsSolutions-APIG2",
+                "reason": "Request validation is handled inside Lambda functions; API Gateway request validation is redundant."
+            }]
+        )
+        NagSuppressions.add_resource_suppressions_by_path(
+            self,
+            path="/AddressStack/AddressApiGateway",
+            suppressions=[{
+                "id": "AwsSolutions-COG4",
+                "reason": (
+                    "A custom Lambda authorizer validates Cognito JWT tokens, including signature, audience, and group membership. "
+                    "It provides stronger security than a direct Cognito authorizer."
+                )
+            }],
+            apply_to_children=True
+        )
+
+        NagSuppressions.add_resource_suppressions(
+            stage,
+            suppressions=[{
+                "id": "AwsSolutions-APIG3",
+                "reason": (
+                    "API stage is protected by Cognito and a custom Lambda authorizer, "
+                    "with no public endpoints. Input validation is handled in Lambdas, making WAF unnecessary."
+                )
+            }]
+        )
 
        
        
