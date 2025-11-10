@@ -8,6 +8,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from cdk_nag import NagSuppressions
 
 
 class AddressStack(Stack):
