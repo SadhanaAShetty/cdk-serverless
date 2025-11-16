@@ -15,6 +15,7 @@ from aws_cdk import (
 from cdk_nag import NagSuppressions
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from constructs.lmbda_construct import LambdaConstruct
 
 
 class FoodDeliveryStack(Stack):
@@ -111,18 +112,20 @@ class FoodDeliveryStack(Stack):
         
 
         #authorizer lambda 
-        authorizer_lambda = lmbda.Function(self, "AuthorizerLambda",
-            function_name="AuthorizerLambda", 
-            runtime=lmbda.Runtime.PYTHON_3_13,
+        authorizer_lambda_construct = LambdaConstruct(
+            self, "AuthorizerLambda",
+            function_name="AuthorizerLambda",
             handler="autherize.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
-            environment={
+            code_path="food_delivery/assets",
+            env={
                 "USER_POOL_ID": user_pool.user_pool_id,
                 "APPLICATION_CLIENT_ID": user_pool_client.user_pool_client_id,
                 "ADMIN_GROUP_NAME": "admin"
             },
-            timeout=Duration.seconds(10)
+            timeout=10
         )
+        authorizer_lambda = authorizer_lambda_construct.lambda_fn
+        
         #NAG_Supression
         NagSuppressions.add_resource_suppressions(
             authorizer_lambda.role,
