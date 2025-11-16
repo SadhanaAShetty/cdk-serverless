@@ -9,6 +9,7 @@ from aws_cdk import (
 from constructs import Construct
 from cdk_nag import NagSuppressions
 from constructs.ddb import DynamoTable
+from constructs.lmbda_construct import LambdaConstruct
 
 class FoodDeliveryOrderUpdate(Stack):
 
@@ -35,18 +36,18 @@ class FoodDeliveryOrderUpdate(Stack):
             "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
         )
 
-        update_lambda = lmbda.Function(
+        update_lambda_construct = LambdaConstruct(
             self, "UpdateOrderLambda",
             function_name="update_order",
-            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="update_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/update_assets"),
+            code_path="food_delivery/update_assets",
             layers=[powertools_layer],
-            environment={
+            env={
                 "TABLE_NAME": orders_table_name
             },
-            timeout=Duration.seconds(10)
+            timeout=10
         )
+        update_lambda = update_lambda_construct.lambda_fn
 
         #Nag Suppression
         NagSuppressions.add_resource_suppressions(

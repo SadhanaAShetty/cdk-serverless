@@ -15,6 +15,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from constructs.lmbda_construct import LambdaConstruct
 from cdk_nag import NagSuppressions
 
 
@@ -38,7 +39,7 @@ class FavoritesStack(Stack):
         favorites_table = DynamoTable(
             self,
             "UserFavoritesTable",
-            table_name="UserOrdersTable",
+            table_name="UserFavoritesTable",
             partition_key="userId",
             sort_key="favoriteId"
         )
@@ -72,35 +73,35 @@ class FavoritesStack(Stack):
         )
 
         # List User Favorites Lambda
-        list_user_favorites_lambda = lmbda.Function(
+        list_user_favorites_construct = LambdaConstruct(
             self, "ListUserFavoritesLambda",
             function_name="list_user_favorites",
-            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="list_user_favorites.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/address_assets/favorites"),
+            code_path="food_delivery/address_assets/favorites",
             layers=[powertools_layer],
-            environment={
+            env={
                 "TABLE_NAME": favorites_table.table_name,
                 "POWERTOOLS_SERVICE_NAME": "favorites-service"
             },
-            timeout=Duration.seconds(10)
+            timeout=10
         )
+        list_user_favorites_lambda = list_user_favorites_construct.lambda_fn
         favorites_table.grant_read_data(list_user_favorites_lambda)
 
         # Process Favorites Queue Lambda (processes SQS messages)
-        process_favorites_queue_lambda = lmbda.Function(
+        process_favorites_queue_construct = LambdaConstruct(
             self, "ProcessFavoritesQueueLambda",
             function_name="process_favorites_queue",
-            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="process_favorites_queue.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/address_assets/favorites"),
+            code_path="food_delivery/address_assets/favorites",
             layers=[powertools_layer],
-            environment={
+            env={
                 "TABLE_NAME": favorites_table.table_name,
                 "POWERTOOLS_SERVICE_NAME": "favorites-service"
             },
-            timeout=Duration.seconds(30)
+            timeout=30
         )
+        process_favorites_queue_lambda = process_favorites_queue_construct.lambda_fn
         favorites_table.grant_read_write_data(process_favorites_queue_lambda)
 
         # Add SQS event source mapping to process_favorites_queue_lambda

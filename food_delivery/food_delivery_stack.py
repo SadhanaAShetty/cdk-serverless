@@ -145,79 +145,79 @@ class FoodDeliveryStack(Stack):
 
     
         #create_order Lambda
-        create_order_lambda = lmbda.Function(
+        create_order_construct = LambdaConstruct(
             self, "CreateOrderFunction",
             function_name="create_order",
-            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="create_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
+            code_path="food_delivery/assets",
             layers=[powertools_layer],
-            environment={
+            env={
                 "TABLE_NAME": table.table_name
             },
-            timeout=Duration.seconds(10)
+            timeout=10
         )
+        create_order_lambda = create_order_construct.lambda_fn
         table.grant_read_write_data(create_order_lambda)
 
 
         #edit_order Lambda
-        edit_order_lambda = lmbda.Function(
+        edit_order_construct = LambdaConstruct(
             self, "EditOrderFunction",
             function_name="edit_order",
-            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="edit_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
+            code_path="food_delivery/assets",
             layers=[powertools_layer],
-            environment={
+            env={
                 "TABLE_NAME": table.table_name
             },
-            timeout=Duration.seconds(10)
+            timeout=10
         )
+        edit_order_lambda = edit_order_construct.lambda_fn
         table.grant_read_write_data(edit_order_lambda)
 
         #list_order Lambda
-        list_order_lambda = lmbda.Function(
+        list_order_construct = LambdaConstruct(
             self, "ListOrderFunction",
             function_name="list_order",
-            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="list_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
+            code_path="food_delivery/assets",
             layers=[powertools_layer],
-            environment={
+            env={
                 "TABLE_NAME": table.table_name
             },
-            timeout=Duration.seconds(10)
+            timeout=10
         )
+        list_order_lambda = list_order_construct.lambda_fn
         table.grant_read_data(list_order_lambda)
 
         #get_order Lambda
-        get_order_lambda = lmbda.Function(
+        get_order_construct = LambdaConstruct(
             self, "GetOrderFunction",
             function_name="get_order",
-            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="get_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
+            code_path="food_delivery/assets",
             layers=[powertools_layer],
-            environment={
+            env={
                 "TABLE_NAME": table.table_name
             },
-            timeout=Duration.seconds(10)
+            timeout=10
         )
+        get_order_lambda = get_order_construct.lambda_fn
         table.grant_read_data(get_order_lambda)
 
         #cancel_order Lambda
-        cancel_order_lambda = lmbda.Function(
+        cancel_order_construct = LambdaConstruct(
             self, "CancelOrderFunction",
             function_name="cancel_order",
-            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="cancel_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
+            code_path="food_delivery/assets",
             layers=[powertools_layer],
-            environment={
+            env={
                 "TABLE_NAME": table.table_name
             },
-            timeout=Duration.seconds(10)
+            timeout=10
         )
+        cancel_order_lambda = cancel_order_construct.lambda_fn
         table.grant_read_write_data(cancel_order_lambda)
 
         #NAG Supression

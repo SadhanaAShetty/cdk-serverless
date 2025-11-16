@@ -10,6 +10,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from constructs.lmbda_construct import LambdaConstruct
 from cdk_nag import NagSuppressions
 
 class FoodDeliveryDataStream(Stack):
@@ -42,33 +43,33 @@ class FoodDeliveryDataStream(Stack):
         )
 
         #Kinesis Producer Lambda
-        kinesis_producer = lmbda.Function(
+        kinesis_producer_construct = LambdaConstruct(
             self, "KinesisProducer",
             function_name="kinesis_producer",
-            runtime=lmbda.Runtime.PYTHON_3_13,
             handler="kinesis_producer.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/data_stream_assets"),
+            code_path="food_delivery/data_stream_assets",
             layers=[powertools_layer],
-            environment={
+            env={
                 "KINESIS_STREAM_NAME": kinesis_stream.stream_name
             },
-            timeout=Duration.seconds(30)
+            timeout=30
         )
+        kinesis_producer = kinesis_producer_construct.lambda_fn
 
         #Kinesis Consumer Lambda (UpdateRiderLocation)
-        kinesis_consumer = lmbda.Function(
+        kinesis_consumer_construct = LambdaConstruct(
             self, "UpdateRiderLocation",
-            function_name="UpdateRiderLocation",  
-            runtime=lmbda.Runtime.PYTHON_3_13,
+            function_name="UpdateRiderLocation",
             handler="kinesis_consumer.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/data_stream_assets"),
+            code_path="food_delivery/data_stream_assets",
             layers=[powertools_layer],
-            environment={
+            env={
                 "KINESIS_STREAM_NAME": kinesis_stream.stream_name,
                 "TABLE_NAME": riders_position_table.table_name
             },
-            timeout=Duration.seconds(30)
+            timeout=30
         )
+        kinesis_consumer = kinesis_consumer_construct.lambda_fn
 
         #EventBridge Simulator 
         simulator_rule = events.Rule(

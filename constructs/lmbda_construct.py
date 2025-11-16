@@ -24,6 +24,7 @@ class LambdaConstruct(Construct):
         handler: str,
         code_path: str,
         env: dict = None,
+        layers: list = None,
         runtime: lmbda.Runtime = lmbda.Runtime.PYTHON_3_13,  
         timeout: int = 10,
         memory: int = 256,
@@ -40,4 +41,5 @@ class LambdaConstruct(Construct):
             timeout=Duration.seconds(timeout),
             memory_size=memory,
             environment=env or {},
+            layers=layers or [],
         )
