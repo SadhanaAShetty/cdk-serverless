@@ -160,9 +160,45 @@ class FavoritesStack(Stack):
             ),
             logging_level=apigw.MethodLoggingLevel.INFO,
             data_trace_enabled=True,
-            metrics_enabled=True
+            metrics_enabled=True,
+            throttling_rate_limit=1000,
+            throttling_burst_limit=2000
         )
         favorites_api.deployment_stage = stage
+
+        # Nag Suppressions for API Gateway
+        NagSuppressions.add_resource_suppressions(
+            favorites_api,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG2",
+                    "reason": "Request validation is handled inside Lambda functions; API Gateway request validation is redundant."
+                },
+                {
+                    "id": "CdkNagValidationFailure",
+                    "reason": "Known CDK-nag limitation with intrinsic functions in API Gateway logging configuration."
+                }
+            ]
+        )
+
+        # Nag Suppressions for API Gateway Stage
+        NagSuppressions.add_resource_suppressions(
+            stage,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG3",
+                    "reason": "WAF is not required for this development/learning project. It adds significant cost without proportional benefit."
+                },
+                {
+                    "id": "AwsSolutions-APIG1",
+                    "reason": "Access logging is already enabled via CloudWatch Logs."
+                },
+                {
+                    "id": "Serverless-APIGWXrayEnabled",
+                    "reason": "X-Ray tracing is disabled to reduce costs. CloudWatch Logs and metrics provide sufficient observability."
+                }
+            ]
+        )
 
         # CloudWatch Alarms for monitoring
         alarms_topic = sns.Topic.from_topic_arn(
