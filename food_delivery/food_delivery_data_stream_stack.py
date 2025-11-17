@@ -12,6 +12,7 @@ from constructs import Construct
 from constructs.ddb import DynamoTable
 from constructs.lmbda_construct import LambdaConstruct
 from cdk_nag import NagSuppressions
+from cdk_nag import NagSuppressions
 
 class FoodDeliveryDataStream(Stack):
 
@@ -107,7 +108,37 @@ class FoodDeliveryDataStream(Stack):
             )
         )
 
-       
+        # Suppress Kinesis event source mapping destination warning
+        NagSuppressions.add_resource_suppressions_by_path(
+            self,
+            path="/FoodDeliveryDataStream/UpdateRiderLocation/Lambda",
+            suppressions=[
+                {
+                    "id": "Serverless-LambdaEventSourceMappingDestination",
+                    "reason": (
+                        "Kinesis has built-in retry mechanisms and the Lambda has its own DLQ. "
+                        "Failed records are automatically retried by Kinesis. "
+                        "Adding an event source mapping destination would be redundant."
+                    )
+                }
+            ],
+            apply_to_children=True
+        )
+
+        # Suppress EventBridge DLQ for simulator
+        NagSuppressions.add_resource_suppressions(
+            simulator_rule,
+            suppressions=[
+                {
+                    "id": "Serverless-EventBusDLQ",
+                    "reason": (
+                        "This is a test/simulator rule that is currently disabled. "
+                        "It generates synthetic location data for testing purposes. "
+                        "A DLQ is not necessary for this non-critical testing functionality."
+                    )
+                }
+            ]
+        )
 
         # Outputs
         CfnOutput(self, "KinesisStreamName", value=kinesis_stream.stream_name)
