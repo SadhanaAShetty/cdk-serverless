@@ -4,7 +4,8 @@ from aws_cdk import (
     aws_events as events,
     aws_lambda as lmbda,
     aws_events_targets as targets,
-    aws_dynamodb as dynamodb
+    aws_dynamodb as dynamodb,
+    aws_sqs as sqs
 )
 from constructs import Construct
 from cdk_nag import NagSuppressions
@@ -62,6 +63,29 @@ class FoodDeliveryOrderUpdate(Stack):
   
         orders_ddb_table.grant_read_write_data(update_lambda)
 
+        # DLQ for EventBridge target failures
+        eventbridge_dlq = sqs.Queue(
+            self, "OrderUpdateEventDLQ",
+            queue_name="order-update-event-dlq",
+            retention_period=Duration.days(14),
+            enforce_ssl=True
+        )
+
+        # Suppress DLQ warnings for this queue since it IS a DLQ
+        NagSuppressions.add_resource_suppressions(
+            eventbridge_dlq,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-SQS3",
+                    "reason": "This queue IS a dead letter queue for EventBridge target failures. It doesn't need its own DLQ."
+                },
+                {
+                    "id": "Serverless-SQSRedrivePolicy",
+                    "reason": "This is a DLQ itself. Adding another DLQ would create unnecessary complexity."
+                }
+            ]
+        )
+
         rule = events.Rule(
             self, "OrderUpdateRule",
             event_bus=restaurant_bus,
@@ -71,7 +95,12 @@ class FoodDeliveryOrderUpdate(Stack):
             )
         )
 
-        rule.add_target(targets.LambdaFunction(update_lambda))
+        rule.add_target(
+            targets.LambdaFunction(
+                update_lambda,
+                dead_letter_queue=eventbridge_dlq
+            )
+        )
 
         CfnOutput(self, "RestaurantBusName", value=restaurant_bus.event_bus_name)
         CfnOutput(self, "OrdersTablenameOutput", value=orders_table_name)
