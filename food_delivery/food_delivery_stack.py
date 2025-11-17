@@ -16,7 +16,7 @@ from aws_cdk import (
 from cdk_nag import NagSuppressions
 from constructs import Construct
 from constructs.ddb import DynamoTable
-from constructs.lmbda_construct import LambdaConstruct
+from constructs.lmbda_construct import Lambda
 
 
 class FoodDeliveryStack(Stack):
@@ -31,14 +31,6 @@ class FoodDeliveryStack(Stack):
             table_name="UserOrdersTable",
             partition_key="userId",
             sort_key="orderId"
-        )
-
-        
-
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self,
-            "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79",
         )
 
         #cognito user pool
@@ -112,7 +104,7 @@ class FoodDeliveryStack(Stack):
         
 
         #authorizer lambda 
-        authorizer_lambda_construct = LambdaConstruct(
+        authorizer_lambda_construct = Lambda(
             self, "AuthorizerLambda",
             function_name="AuthorizerLambda",
             handler="autherize.lambda_handler",
@@ -135,12 +127,11 @@ class FoodDeliveryStack(Stack):
 
     
         #create_order Lambda
-        create_order_construct = LambdaConstruct(
+        create_order_construct = Lambda(
             self, "CreateOrderFunction",
             function_name="create_order",
             handler="create_order.lambda_handler",
             code_path="food_delivery/assets",
-            layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
             }
@@ -150,12 +141,11 @@ class FoodDeliveryStack(Stack):
 
 
         #edit_order Lambda
-        edit_order_construct = LambdaConstruct(
+        edit_order_construct = Lambda(
             self, "EditOrderFunction",
             function_name="edit_order",
             handler="edit_order.lambda_handler",
             code_path="food_delivery/assets",
-            layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
             }
@@ -164,12 +154,11 @@ class FoodDeliveryStack(Stack):
         table.grant_read_write_data(edit_order_lambda)
 
         #list_order Lambda
-        list_order_construct = LambdaConstruct(
+        list_order_construct = Lambda(
             self, "ListOrderFunction",
             function_name="list_order",
             handler="list_order.lambda_handler",
             code_path="food_delivery/assets",
-            layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
             }
@@ -178,12 +167,11 @@ class FoodDeliveryStack(Stack):
         table.grant_read_data(list_order_lambda)
 
         #get_order Lambda
-        get_order_construct = LambdaConstruct(
+        get_order_construct = Lambda(
             self, "GetOrderFunction",
             function_name="get_order",
             handler="get_order.lambda_handler",
             code_path="food_delivery/assets",
-            layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
             }
@@ -192,12 +180,11 @@ class FoodDeliveryStack(Stack):
         table.grant_read_data(get_order_lambda)
 
         #cancel_order Lambda
-        cancel_order_construct = LambdaConstruct(
+        cancel_order_construct = Lambda(
             self, "CancelOrderFunction",
             function_name="cancel_order",
             handler="cancel_order.lambda_handler",
             code_path="food_delivery/assets",
-            layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
             }

@@ -15,7 +15,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
-from constructs.lmbda_construct import LambdaConstruct
+from constructs.lmbda_construct import Lambda
 from cdk_nag import NagSuppressions
 
 
@@ -82,20 +82,14 @@ class FavoritesStack(Stack):
             )
         )
 
-        # Lambda Layer for Powertools 
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self,
-            "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
-        )
+       
 
         # List User Favorites Lambda
-        list_user_favorites_construct = LambdaConstruct(
+        list_user_favorites_construct = Lambda(
             self, "ListUserFavoritesLambda",
             function_name="list_user_favorites",
             handler="list_user_favorites.lambda_handler",
             code_path="food_delivery/address_assets/favorites",
-            layers=[powertools_layer],
             env={
                 "TABLE_NAME": favorites_table.table_name,
                 "POWERTOOLS_SERVICE_NAME": "favorites-service"
@@ -105,12 +99,11 @@ class FavoritesStack(Stack):
         favorites_table.grant_read_data(list_user_favorites_lambda)
 
         # Process Favorites Queue Lambda (processes SQS messages)
-        process_favorites_queue_construct = LambdaConstruct(
+        process_favorites_queue_construct = Lambda(
             self, "ProcessFavoritesQueueLambda",
             function_name="process_favorites_queue",
             handler="process_favorites_queue.lambda_handler",
             code_path="food_delivery/address_assets/favorites",
-            layers=[powertools_layer],
             env={
                 "TABLE_NAME": favorites_table.table_name,
                 "POWERTOOLS_SERVICE_NAME": "favorites-service"

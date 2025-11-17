@@ -10,7 +10,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
-from constructs.lmbda_construct import LambdaConstruct
+from constructs.lmbda_construct import Lambda
 from cdk_nag import NagSuppressions
 from cdk_nag import NagSuppressions
 
@@ -36,20 +36,14 @@ class FoodDeliveryDataStream(Stack):
             partition_key="rider_id"
         )
         
-        #PowerTools Layer
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self,
-            "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
-        )
+        
 
         #Kinesis Producer Lambda
-        kinesis_producer_construct = LambdaConstruct(
+        kinesis_producer_construct = Lambda(
             self, "KinesisProducer",
             function_name="kinesis_producer",
             handler="kinesis_producer.lambda_handler",
             code_path="food_delivery/data_stream_assets",
-            layers=[powertools_layer],
             env={
                 "KINESIS_STREAM_NAME": kinesis_stream.stream_name
             },
@@ -58,12 +52,11 @@ class FoodDeliveryDataStream(Stack):
         kinesis_producer = kinesis_producer_construct.lambda_fn
 
         #Kinesis Consumer Lambda (UpdateRiderLocation)
-        kinesis_consumer_construct = LambdaConstruct(
+        kinesis_consumer_construct = Lambda(
             self, "UpdateRiderLocation",
             function_name="UpdateRiderLocation",
             handler="kinesis_consumer.lambda_handler",
             code_path="food_delivery/data_stream_assets",
-            layers=[powertools_layer],
             env={
                 "KINESIS_STREAM_NAME": kinesis_stream.stream_name,
                 "TABLE_NAME": riders_position_table.table_name

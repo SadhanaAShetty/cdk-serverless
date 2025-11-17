@@ -8,7 +8,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
-from constructs.lmbda_construct import LambdaConstruct
+from constructs.lmbda_construct import Lambda
 from cdk_nag import NagSuppressions
 
 
@@ -39,12 +39,7 @@ class AddressStack(Stack):
             results_cache_ttl=Duration.seconds(0)
         )
 
-        #Lambda Powertools layer
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self,
-            "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79",
-        )
+        
 
         #EventBridge Custom Bus for Address Events
         address_bus = events.EventBus(
@@ -53,12 +48,11 @@ class AddressStack(Stack):
         )
         
         #Add Address Lambda
-        add_address_construct = LambdaConstruct(
+        add_address_construct = Lambda(
             self, "AddAddressLambda",
             function_name="add_user_address",
             handler="add_user_address.lambda_handler",
             code_path="food_delivery/address_assets/address",
-            layers=[powertools_layer],
             env={
                 "ADDRESS_TABLE_NAME": address_table.table_name,
                 "EVENT_BUS_NAME": address_bus.event_bus_name
@@ -69,12 +63,11 @@ class AddressStack(Stack):
         address_bus.grant_put_events_to(add_address_lambda)
 
         # Edit Address Lambda
-        edit_address_construct = LambdaConstruct(
+        edit_address_construct = Lambda(
             self, "EditAddressLambda",
             function_name="edit_user_address",
             handler="edit_user_address.lambda_handler",
             code_path="food_delivery/address_assets/address",
-            layers=[powertools_layer],
             env={
                 "ADDRESS_TABLE_NAME": address_table.table_name,
                 "EVENT_BUS_NAME": address_bus.event_bus_name
@@ -85,12 +78,11 @@ class AddressStack(Stack):
         address_bus.grant_put_events_to(edit_address_lambda)
 
         #Delete Address Lambda
-        delete_address_construct = LambdaConstruct(
+        delete_address_construct = Lambda(
             self, "DeleteAddressLambda",
             function_name="delete_user_address",
             handler="delete_user_address.lambda_handler",
             code_path="food_delivery/address_assets/address",
-            layers=[powertools_layer],
             env={
                 "ADDRESS_TABLE_NAME": address_table.table_name,
                 "EVENT_BUS_NAME": address_bus.event_bus_name
@@ -101,12 +93,11 @@ class AddressStack(Stack):
         address_bus.grant_put_events_to(delete_address_lambda)
 
         # List User Addresses Lambda
-        list_user_addresses_construct = LambdaConstruct(
+        list_user_addresses_construct = Lambda(
             self, "ListUserAddressesLambda",
             function_name="list_user_addresses",
             handler="list_user_addresses.lambda_handler",
             code_path="food_delivery/address_assets/address",
-            layers=[powertools_layer],
             env={
                 "ADDRESS_TABLE_NAME": address_table.table_name
             }

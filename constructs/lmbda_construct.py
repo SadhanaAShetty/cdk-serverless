@@ -13,6 +13,7 @@ class LambdaConstruct(Construct):
 
     Defaults:
     - Python 3.13 runtime
+    - AWS Lambda Powertools layer (eu-west-1)
     - DLQ automatically created
     - Tracing disabled with cdk-nag suppression
     - 10s timeout
@@ -35,7 +36,16 @@ class LambdaConstruct(Construct):
     ):
         super().__init__(scope, id)
 
-   
+        # Default Powertools layer for eu-west-1
+        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
+            self,
+            "PowertoolsLayer",
+            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
+        )
+
+        # Combine default Powertools layer with any additional layers
+        all_layers = [powertools_layer] + (layers or [])
+
         dlq = sqs.Queue(
             self,
             "DLQ",
@@ -68,7 +78,7 @@ class LambdaConstruct(Construct):
             timeout=Duration.seconds(timeout),
             memory_size=memory,
             environment=env or {},
-            layers=layers or [],
+            layers=all_layers,
             dead_letter_queue=dlq,              
             tracing=lmbda.Tracing.DISABLED,  
         )

@@ -10,7 +10,7 @@ from aws_cdk import (
 from constructs import Construct
 from cdk_nag import NagSuppressions
 from constructs.ddb import DynamoTable
-from constructs.lmbda_construct import LambdaConstruct
+from constructs.lmbda_construct import Lambda
 
 class FoodDeliveryOrderUpdate(Stack):
 
@@ -32,17 +32,13 @@ class FoodDeliveryOrderUpdate(Stack):
             event_bus_name=f"Orders-{stage}"
         )
 
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self, "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
-        )
+        
 
-        update_lambda_construct = LambdaConstruct(
+        update_lambda_construct = Lambda(
             self, "UpdateOrderLambda",
             function_name="update_order",
             handler="update_order.lambda_handler",
             code_path="food_delivery/update_assets",
-            layers=[powertools_layer],
             env={
                 "TABLE_NAME": orders_table_name
             }
