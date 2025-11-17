@@ -8,6 +8,8 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from constructs.lmbda_construct import Lambda
+from cdk_nag import NagSuppressions
 
 
 class AddressStack(Stack):
@@ -19,7 +21,7 @@ class AddressStack(Stack):
         address_table = DynamoTable(
             self,
             "UserAddressesTable",
-            table_name="UserOrdersTable",
+            table_name="UserAddressesTable",
             partition_key="userId",
             sort_key="addressId"
         )
@@ -37,12 +39,7 @@ class AddressStack(Stack):
             results_cache_ttl=Duration.seconds(0)
         )
 
-        #Lambda Powertools layer
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self,
-            "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79",
-        )
+        
 
         #EventBridge Custom Bus for Address Events
         address_bus = events.EventBus(
@@ -51,72 +48,63 @@ class AddressStack(Stack):
         )
         
         #Add Address Lambda
-        add_address_lambda = lmbda.Function(
+        add_address_construct = Lambda(
             self, "AddAddressLambda",
             function_name="add_user_address",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="add_user_address.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/address_assets/address"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/address_assets/address",
+            env={
                 "ADDRESS_TABLE_NAME": address_table.table_name,
                 "EVENT_BUS_NAME": address_bus.event_bus_name
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        add_address_lambda = add_address_construct.lambda_fn
         address_table.grant_read_write_data(add_address_lambda)
         address_bus.grant_put_events_to(add_address_lambda)
 
         # Edit Address Lambda
-        edit_address_lambda = lmbda.Function(
+        edit_address_construct = Lambda(
             self, "EditAddressLambda",
             function_name="edit_user_address",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="edit_user_address.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/address_assets/address"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/address_assets/address",
+            env={
                 "ADDRESS_TABLE_NAME": address_table.table_name,
                 "EVENT_BUS_NAME": address_bus.event_bus_name
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        edit_address_lambda = edit_address_construct.lambda_fn
         address_table.grant_read_write_data(edit_address_lambda)
         address_bus.grant_put_events_to(edit_address_lambda)
 
         #Delete Address Lambda
-        delete_address_lambda = lmbda.Function(
+        delete_address_construct = Lambda(
             self, "DeleteAddressLambda",
             function_name="delete_user_address",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="delete_user_address.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/address_assets/address"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/address_assets/address",
+            env={
                 "ADDRESS_TABLE_NAME": address_table.table_name,
                 "EVENT_BUS_NAME": address_bus.event_bus_name
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        delete_address_lambda = delete_address_construct.lambda_fn
         address_table.grant_read_write_data(delete_address_lambda)
         address_bus.grant_put_events_to(delete_address_lambda)
 
         # List User Addresses Lambda
-        list_user_addresses_lambda = lmbda.Function(
+        list_user_addresses_construct = Lambda(
             self, "ListUserAddressesLambda",
             function_name="list_user_addresses",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="list_user_addresses.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/address_assets/address"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/address_assets/address",
+            env={
                 "ADDRESS_TABLE_NAME": address_table.table_name
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        list_user_addresses_lambda = list_user_addresses_construct.lambda_fn
         address_table.grant_read_data(list_user_addresses_lambda)
-
-      
+        
 
         #API Gateway for Address Management
         address_api = apigw.RestApi(
@@ -171,6 +159,7 @@ class AddressStack(Stack):
             authorization_type=apigw.AuthorizationType.CUSTOM,
             authorizer=authorizer,
         )
+        
 
         #API Gateway Deployment and Stage
         deployment = apigw.Deployment(self, "AddressApiDeployment", api=address_api)
@@ -192,9 +181,68 @@ class AddressStack(Stack):
             ),
             logging_level=apigw.MethodLoggingLevel.INFO,
             data_trace_enabled=True,
-            metrics_enabled=True
+            metrics_enabled=True,
+            throttling_rate_limit=1000,
+            throttling_burst_limit=2000
         )
         address_api.deployment_stage = stage
+
+        #Nag Suppression for API Gateway
+        NagSuppressions.add_resource_suppressions(
+            address_api,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG2",
+                    "reason": "Request validation is handled inside Lambda functions; API Gateway request validation is redundant."
+                },
+                {
+                    "id": "CdkNagValidationFailure",
+                    "reason": "Known CDK-nag limitation with intrinsic functions in API Gateway logging configuration."
+                }
+            ]
+        )
+
+        #Nag Suppression for API Gateway Stage
+        NagSuppressions.add_resource_suppressions(
+            stage,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG3",
+                    "reason": "WAF is not required for this development/learning project. It adds significant cost without proportional benefit."
+                },
+                {
+                    "id": "AwsSolutions-APIG1",
+                    "reason": "Access logging is already enabled via CloudWatch Logs."
+                },
+                {
+                    "id": "Serverless-APIGWXrayEnabled",
+                    "reason": "X-Ray tracing is disabled to reduce costs. CloudWatch Logs and metrics provide sufficient observability."
+                }
+            ]
+        )
+        NagSuppressions.add_resource_suppressions_by_path(
+            self,
+            path="/AddressStack/AddressApiGateway",
+            suppressions=[{
+                "id": "AwsSolutions-COG4",
+                "reason": (
+                    "A custom Lambda authorizer validates Cognito JWT tokens, including signature, audience, and group membership. "
+                    "It provides stronger security than a direct Cognito authorizer."
+                )
+            }],
+            apply_to_children=True
+        )
+
+        NagSuppressions.add_resource_suppressions(
+            stage,
+            suppressions=[{
+                "id": "AwsSolutions-APIG3",
+                "reason": (
+                    "API stage is protected by Cognito and a custom Lambda authorizer, "
+                    "with no public endpoints. Input validation is handled in Lambdas, making WAF unnecessary."
+                )
+            }]
+        )
 
        
        

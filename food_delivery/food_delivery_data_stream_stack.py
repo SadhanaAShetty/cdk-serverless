@@ -10,6 +10,9 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from constructs.lmbda_construct import Lambda
+from cdk_nag import NagSuppressions
+from cdk_nag import NagSuppressions
 
 class FoodDeliveryDataStream(Stack):
 
@@ -33,41 +36,34 @@ class FoodDeliveryDataStream(Stack):
             partition_key="rider_id"
         )
         
-        #PowerTools Layer
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self,
-            "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
-        )
+        
 
         #Kinesis Producer Lambda
-        kinesis_producer = lmbda.Function(
+        kinesis_producer_construct = Lambda(
             self, "KinesisProducer",
             function_name="kinesis_producer",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="kinesis_producer.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/data_stream_assets"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/data_stream_assets",
+            env={
                 "KINESIS_STREAM_NAME": kinesis_stream.stream_name
             },
-            timeout=Duration.seconds(30)
+            timeout=30
         )
+        kinesis_producer = kinesis_producer_construct.lambda_fn
 
         #Kinesis Consumer Lambda (UpdateRiderLocation)
-        kinesis_consumer = lmbda.Function(
+        kinesis_consumer_construct = Lambda(
             self, "UpdateRiderLocation",
-            function_name="UpdateRiderLocation",  
-            runtime=lmbda.Runtime.PYTHON_3_12,
+            function_name="UpdateRiderLocation",
             handler="kinesis_consumer.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/data_stream_assets"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/data_stream_assets",
+            env={
                 "KINESIS_STREAM_NAME": kinesis_stream.stream_name,
                 "TABLE_NAME": riders_position_table.table_name
             },
-            timeout=Duration.seconds(30)
+            timeout=30
         )
+        kinesis_consumer = kinesis_consumer_construct.lambda_fn
 
         #EventBridge Simulator 
         simulator_rule = events.Rule(
@@ -103,6 +99,38 @@ class FoodDeliveryDataStream(Stack):
                 batch_size=10,
                 starting_position=lmbda.StartingPosition.LATEST
             )
+        )
+
+        # Suppress Kinesis event source mapping destination warning
+        NagSuppressions.add_resource_suppressions_by_path(
+            self,
+            path="/FoodDeliveryDataStream/UpdateRiderLocation/Lambda",
+            suppressions=[
+                {
+                    "id": "Serverless-LambdaEventSourceMappingDestination",
+                    "reason": (
+                        "Kinesis has built-in retry mechanisms and the Lambda has its own DLQ. "
+                        "Failed records are automatically retried by Kinesis. "
+                        "Adding an event source mapping destination would be redundant."
+                    )
+                }
+            ],
+            apply_to_children=True
+        )
+
+        # Suppress EventBridge DLQ for simulator
+        NagSuppressions.add_resource_suppressions(
+            simulator_rule,
+            suppressions=[
+                {
+                    "id": "Serverless-EventBusDLQ",
+                    "reason": (
+                        "This is a test/simulator rule that is currently disabled. "
+                        "It generates synthetic location data for testing purposes. "
+                        "A DLQ is not necessary for this non-critical testing functionality."
+                    )
+                }
+            ]
         )
 
         # Outputs

@@ -6,14 +6,17 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_logs as logs,
     aws_sns as sns,
+    aws_sqs as sqs,
     aws_iam as iam,
     aws_ssm as ssm,
     aws_sns_subscriptions as sns_subscriptions,
     aws_cloudwatch as cloudwatch,
     aws_cloudwatch_actions as cloudwatch_actions
 )
+from cdk_nag import NagSuppressions
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from constructs.lmbda_construct import Lambda
 
 
 class FoodDeliveryStack(Stack):
@@ -30,14 +33,6 @@ class FoodDeliveryStack(Stack):
             sort_key="orderId"
         )
 
-        
-
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self,
-            "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79",
-        )
-
         #cognito user pool
         user_pool = cognito.UserPool(self, "UserPool",
             user_pool_name="food-order-userpool",
@@ -47,7 +42,36 @@ class FoodDeliveryStack(Stack):
             standard_attributes=cognito.StandardAttributes(
                 fullname=cognito.StandardAttribute(required=True, mutable=True),
                 email=cognito.StandardAttribute(required=True, mutable=True),
+
             ),
+            password_policy=cognito.PasswordPolicy(  
+                min_length=8,
+                require_uppercase=True,
+                require_lowercase=True,
+                require_digits=True,
+                require_symbols=True
+            )
+        )
+        # Suppress AwsSolutions-COG3
+        NagSuppressions.add_resource_suppressions(
+            user_pool,
+            suppressions=[{
+                "id": "AwsSolutions-COG3",
+                "reason": "Cannot enable Advanced Security without Cognito Plus plan."
+            }]
+        )
+
+
+        #NAG_Supression
+        NagSuppressions.add_resource_suppressions(
+            user_pool,
+            [
+                {
+                    "id": "AwsSolutions-COG2",
+                    "reason": "MFA is not required for my use case"
+                }
+            ],
+            True  
         )
 
         user_pool_client = cognito.UserPoolClient(self, "UserPoolClient",
@@ -77,19 +101,24 @@ class FoodDeliveryStack(Stack):
             group_name="admin"
         )
 
+        
+
         #authorizer lambda 
-        authorizer_lambda = lmbda.Function(self, "AuthorizerLambda",
-            function_name="AuthorizerLambda", 
-            runtime=lmbda.Runtime.PYTHON_3_11,
+        authorizer_lambda_construct = Lambda(
+            self, "AuthorizerLambda",
+            function_name="AuthorizerLambda",
             handler="autherize.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
-            environment={
+            code_path="food_delivery/assets",
+            env={
                 "USER_POOL_ID": user_pool.user_pool_id,
                 "APPLICATION_CLIENT_ID": user_pool_client.user_pool_client_id,
                 "ADMIN_GROUP_NAME": "admin"
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        authorizer_lambda = authorizer_lambda_construct.lambda_fn
+        
+       
+
 
         authorizer = apigw.TokenAuthorizer(self, "UserAuthorizer",
             handler=authorizer_lambda,
@@ -98,81 +127,72 @@ class FoodDeliveryStack(Stack):
 
     
         #create_order Lambda
-        create_order_lambda = lmbda.Function(
+        create_order_construct = Lambda(
             self, "CreateOrderFunction",
             function_name="create_order",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="create_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/assets",
+            env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        create_order_lambda = create_order_construct.lambda_fn
         table.grant_read_write_data(create_order_lambda)
 
 
         #edit_order Lambda
-        edit_order_lambda = lmbda.Function(
+        edit_order_construct = Lambda(
             self, "EditOrderFunction",
             function_name="edit_order",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="edit_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/assets",
+            env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        edit_order_lambda = edit_order_construct.lambda_fn
         table.grant_read_write_data(edit_order_lambda)
 
         #list_order Lambda
-        list_order_lambda = lmbda.Function(
+        list_order_construct = Lambda(
             self, "ListOrderFunction",
             function_name="list_order",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="list_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/assets",
+            env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        list_order_lambda = list_order_construct.lambda_fn
         table.grant_read_data(list_order_lambda)
 
         #get_order Lambda
-        get_order_lambda = lmbda.Function(
+        get_order_construct = Lambda(
             self, "GetOrderFunction",
             function_name="get_order",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="get_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/assets",
+            env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        get_order_lambda = get_order_construct.lambda_fn
         table.grant_read_data(get_order_lambda)
 
         #cancel_order Lambda
-        cancel_order_lambda = lmbda.Function(
+        cancel_order_construct = Lambda(
             self, "CancelOrderFunction",
             function_name="cancel_order",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="cancel_order.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/assets"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/assets",
+            env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        cancel_order_lambda = cancel_order_construct.lambda_fn
         table.grant_read_write_data(cancel_order_lambda)
 
+        
 
         #API Gateway
         api = apigw.RestApi(
@@ -256,9 +276,65 @@ class FoodDeliveryStack(Stack):
             ),
             logging_level=apigw.MethodLoggingLevel.INFO,
             data_trace_enabled=True,
-            metrics_enabled=True
+            metrics_enabled=True,
+            throttling_rate_limit=1000,
+            throttling_burst_limit=2000
         )
         api.deployment_stage = stage
+
+        #Nag Suppression for API Gateway
+        NagSuppressions.add_resource_suppressions(
+            api,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG2",
+                    "reason": (
+                        "Input and authorization validation are implemented within the Lambda authorizer, "
+                        "which performs signature, expiry, audience, and group membership checks on tokens. "
+                        "Therefore, API Gateway request validation is redundant."
+                    )
+                },
+                {
+                    "id": "CdkNagValidationFailure",
+                    "reason": "Known CDK-nag limitation with intrinsic functions in API Gateway logging configuration."
+                }
+            ]
+        )
+
+        #Nag Suppression for API Gateway Stage
+        NagSuppressions.add_resource_suppressions(
+            stage,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG3",
+                    "reason": "WAF is not required for this development/learning project. It adds significant cost without proportional benefit for the use case."
+                },
+                {
+                    "id": "AwsSolutions-APIG1",
+                    "reason": "Access logging is already enabled via CloudWatch Logs."
+                },
+                {
+                    "id": "Serverless-APIGWXrayEnabled",
+                    "reason": "X-Ray tracing is disabled to reduce costs. CloudWatch Logs and metrics provide sufficient observability for this use case."
+                }
+            ]
+        )
+
+        #Nag Suppression
+        NagSuppressions.add_resource_suppressions_by_path(
+            self,
+            path="/FoodDeliveryStack/FoodDeliveryAPI",
+            suppressions=[{
+                "id": "AwsSolutions-COG4",
+                "reason": (
+                    "A custom Lambda authorizer is implemented for token validation and access control. "
+                    "It validates Cognito JWT signatures, audience, and user groups, providing stronger security than Cognito authorizers."
+                )
+            }],
+            apply_to_children=True
+        )
+
+
 
 
         #sns topic for alarms
@@ -267,13 +343,40 @@ class FoodDeliveryStack(Stack):
             string_parameter_name="/ses/parameter/email/receiver"
         ).string_value
 
+        # DLQ for SNS subscription failures
+        sns_dlq = sqs.Queue(
+            self, "AlarmsSNSDLQ",
+            queue_name="food-delivery-alarms-sns-dlq",
+            retention_period=Duration.days(14),
+            enforce_ssl=True
+        )
+
+        # Suppress DLQ warnings for this queue since it IS a DLQ
+        NagSuppressions.add_resource_suppressions(
+            sns_dlq,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-SQS3",
+                    "reason": "This queue IS a dead letter queue for SNS subscription failures. It doesn't need its own DLQ."
+                },
+                {
+                    "id": "Serverless-SQSRedrivePolicy",
+                    "reason": "This is a DLQ itself. Adding another DLQ would create unnecessary complexity for alarm notifications."
+                }
+            ]
+        )
+
         alarms_topic = sns.Topic(self, "FoodDeliveryAlarms",
             topic_name="food-delivery-alarms",
-            display_name="Food Delivery Monitoring Alarms"
+            display_name="Food Delivery Monitoring Alarms",
+            enforce_ssl=True
         )
 
         alarms_topic.add_subscription(
-            sns_subscriptions.EmailSubscription(receiver)
+            sns_subscriptions.EmailSubscription(
+                receiver,
+                dead_letter_queue=sns_dlq
+            )
         )
         
         #cloudWatch alarm for API gateway 5XX errors

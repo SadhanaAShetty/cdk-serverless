@@ -15,6 +15,8 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.ddb import DynamoTable
+from constructs.lmbda_construct import Lambda
+from cdk_nag import NagSuppressions
 
 
 class FavoritesStack(Stack):
@@ -37,7 +39,7 @@ class FavoritesStack(Stack):
         favorites_table = DynamoTable(
             self,
             "UserFavoritesTable",
-            table_name="UserOrdersTable",
+            table_name="UserFavoritesTable",
             partition_key="userId",
             sort_key="favoriteId"
         )
@@ -47,7 +49,23 @@ class FavoritesStack(Stack):
         favorites_dlq = sqs.Queue(
             self, "FavoritesDLQ",
             queue_name="food-delivery-favorites-dlq",
-            retention_period=Duration.days(14)
+            retention_period=Duration.days(14),
+            enforce_ssl=True
+        )
+
+        # Suppress DLQ warnings for this queue since it IS a DLQ
+        NagSuppressions.add_resource_suppressions(
+            favorites_dlq,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-SQS3",
+                    "reason": "This queue IS a dead letter queue for the favorites queue. It doesn't need its own DLQ."
+                },
+                {
+                    "id": "Serverless-SQSRedrivePolicy",
+                    "reason": "This is a DLQ itself. Adding another DLQ would create unnecessary complexity."
+                }
+            ]
         )
 
         # SQS Queue - FavoritesQueue with DLQ
@@ -57,49 +75,42 @@ class FavoritesStack(Stack):
             visibility_timeout=Duration.seconds(300),
             retention_period=Duration.days(14),
             receive_message_wait_time=Duration.seconds(20),
+            enforce_ssl=True,
             dead_letter_queue=sqs.DeadLetterQueue(
                 max_receive_count=3,
                 queue=favorites_dlq
             )
         )
 
-        # Lambda Layer for Powertools 
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self,
-            "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79"
-        )
+       
 
         # List User Favorites Lambda
-        list_user_favorites_lambda = lmbda.Function(
+        list_user_favorites_construct = Lambda(
             self, "ListUserFavoritesLambda",
             function_name="list_user_favorites",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="list_user_favorites.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/address_assets/favorites"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/address_assets/favorites",
+            env={
                 "TABLE_NAME": favorites_table.table_name,
                 "POWERTOOLS_SERVICE_NAME": "favorites-service"
-            },
-            timeout=Duration.seconds(10)
+            }
         )
+        list_user_favorites_lambda = list_user_favorites_construct.lambda_fn
         favorites_table.grant_read_data(list_user_favorites_lambda)
 
         # Process Favorites Queue Lambda (processes SQS messages)
-        process_favorites_queue_lambda = lmbda.Function(
+        process_favorites_queue_construct = Lambda(
             self, "ProcessFavoritesQueueLambda",
             function_name="process_favorites_queue",
-            runtime=lmbda.Runtime.PYTHON_3_12,
             handler="process_favorites_queue.lambda_handler",
-            code=lmbda.Code.from_asset("food_delivery/address_assets/favorites"),
-            layers=[powertools_layer],
-            environment={
+            code_path="food_delivery/address_assets/favorites",
+            env={
                 "TABLE_NAME": favorites_table.table_name,
                 "POWERTOOLS_SERVICE_NAME": "favorites-service"
             },
-            timeout=Duration.seconds(30)
+            timeout=30
         )
+        process_favorites_queue_lambda = process_favorites_queue_construct.lambda_fn
         favorites_table.grant_read_write_data(process_favorites_queue_lambda)
 
         # Add SQS event source mapping to process_favorites_queue_lambda
@@ -109,6 +120,23 @@ class FavoritesStack(Stack):
                 batch_size=10,
                 max_batching_window=Duration.seconds(5)
             )
+        )
+
+        # Suppress event source mapping destination warning at stack level
+        NagSuppressions.add_resource_suppressions_by_path(
+            self,
+            path="/FavoritesStack/ProcessFavoritesQueueLambda/Lambda",
+            suppressions=[
+                {
+                    "id": "Serverless-LambdaEventSourceMappingDestination",
+                    "reason": (
+                        "Failed messages are already handled by the SQS queue's DLQ. "
+                        "The Lambda function also has its own DLQ for processing failures. "
+                        "Adding an event source mapping destination would be redundant."
+                    )
+                }
+            ],
+            apply_to_children=True
         )
 
         # API Gateway for Favorites Management
@@ -158,9 +186,45 @@ class FavoritesStack(Stack):
             ),
             logging_level=apigw.MethodLoggingLevel.INFO,
             data_trace_enabled=True,
-            metrics_enabled=True
+            metrics_enabled=True,
+            throttling_rate_limit=1000,
+            throttling_burst_limit=2000
         )
         favorites_api.deployment_stage = stage
+
+        # Nag Suppressions for API Gateway
+        NagSuppressions.add_resource_suppressions(
+            favorites_api,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG2",
+                    "reason": "Request validation is handled inside Lambda functions; API Gateway request validation is redundant."
+                },
+                {
+                    "id": "CdkNagValidationFailure",
+                    "reason": "Known CDK-nag limitation with intrinsic functions in API Gateway logging configuration."
+                }
+            ]
+        )
+
+        # Nag Suppressions for API Gateway Stage
+        NagSuppressions.add_resource_suppressions(
+            stage,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG3",
+                    "reason": "WAF is not required for this development/learning project. It adds significant cost without proportional benefit."
+                },
+                {
+                    "id": "AwsSolutions-APIG1",
+                    "reason": "Access logging is already enabled via CloudWatch Logs."
+                },
+                {
+                    "id": "Serverless-APIGWXrayEnabled",
+                    "reason": "X-Ray tracing is disabled to reduce costs. CloudWatch Logs and metrics provide sufficient observability."
+                }
+            ]
+        )
 
         # CloudWatch Alarms for monitoring
         alarms_topic = sns.Topic.from_topic_arn(
@@ -185,6 +249,19 @@ class FavoritesStack(Stack):
         )
         queue_depth_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarms_topic))
 
+        #Nag Suppression
+        for queue in [favorites_queue, favorites_dlq]:
+            NagSuppressions.add_resource_suppressions(
+                queue,
+                suppressions=[{
+                    "id": "AwsSolutions-SQS4",
+                    "reason": "Queue is accessed only internally by Lambda functions; SSL not required."
+                }]
+            )
+
+        
+
+
         # Lambda function alarms
         favorites_lambda_functions = [
             ("ListUserFavorites", list_user_favorites_lambda),
@@ -205,6 +282,31 @@ class FavoritesStack(Stack):
             )
             error_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarms_topic))
 
+        #Nag Suppression
+
+        NagSuppressions.add_resource_suppressions(
+            favorites_api,
+            suppressions=[{
+                "id": "AwsSolutions-APIG2",
+                "reason": "Request validation is handled inside Lambda functions, making API Gateway validation redundant."
+            }]
+        )
+
+        NagSuppressions.add_resource_suppressions_by_path(
+            self,
+            path="/FavoritesStack/FavoritesApiGateway",
+            suppressions=[{
+                "id": "AwsSolutions-COG4",
+                "reason": (
+                    "A custom Lambda authorizer is implemented for token validation and access control. "
+                    "It validates Cognito JWT signatures, audience, and user groups, providing stronger security than Cognito authorizers."
+                )
+            }],
+            apply_to_children=True
+        )
+
+        
+
         # Stack Outputs
         CfnOutput(
             self, "FavoritesTableOutput",
@@ -223,6 +325,9 @@ class FavoritesStack(Stack):
             value=favorites_queue.queue_url,
             export_name="FavoritesQueueUrl"
         )
+
+        
+
 
         # Store references as properties for potential cross-stack usage
         self.favorites_table = favorites_table

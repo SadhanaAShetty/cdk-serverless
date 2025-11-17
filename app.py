@@ -3,6 +3,8 @@ import os
 
 import aws_cdk as cdk
 from dotenv import load_dotenv
+from aws_cdk import App, Aspects
+from cdk_nag import AwsSolutionsChecks, ServerlessChecks
 
 # from order_processing.order_processing_frontend_stack import OrderProcessingFrontendStack
 # from order_processing.order_processing_backend_stack import OrderProcessingBackendStack
@@ -12,12 +14,12 @@ from dotenv import load_dotenv
 # from loan_processor2.loan_processing_stack import LoanProcessingStack
 # from loan_processor3.loan_processing_stack import LoanProcessingStack
 # from image_processing.image_processing_stack import ImageProcessingStack
-# from loan_processing.loan_processing_stack import LoanProcessingStack
-from food_delivery.food_delivery_stack import FoodDeliveryStack
+# # from loan_processing.loan_processing_stack import LoanProcessingStack
+# from food_delivery.food_delivery_stack import FoodDeliveryStack
 # from food_delivery.food_delivery_user_profile_stack import AddressStack
 # from food_delivery.food_delivery_favorites_stack import FavoritesStack
 # from food_delivery.food_delivery_order_update_stack import FoodDeliveryOrderUpdate
-# from food_delivery.food_delivery_data_stream_stack import  FoodDeliveryDataStream
+from food_delivery.food_delivery_data_stream_stack import  FoodDeliveryDataStream
 
 
 
@@ -59,9 +61,9 @@ app = cdk.App()
 #                              env =cdk.Environment(account =account, region = region),
 #                              )
 
-stack_main = FoodDeliveryStack(app, "FoodDeliveryStack",
-                             env =cdk.Environment(account =account, region = region),
-                             )
+# stack_main = FoodDeliveryStack(app, "FoodDeliveryStack",
+#                              env =cdk.Environment(account =account, region = region),
+#                              )
 # stack_user = AddressStack(app, "AddressStack",
 #                           env =cdk.Environment(account =account, region = region),
 #                             )
@@ -71,10 +73,12 @@ stack_main = FoodDeliveryStack(app, "FoodDeliveryStack",
 # stack_order_update = FoodDeliveryOrderUpdate(app, "FoodDeliveryOrderUpdate",
 #                           env =cdk.Environment(account =account, region = region),
 #                             )
-# stack_data_stream = FoodDeliveryDataStream(app, "FoodDeliveryDataStream",
-#                           env =cdk.Environment(account =account, region = region),
-#                             )
-# stack_address.add_dependency(stack_main)
+stack_data_stream = FoodDeliveryDataStream(app, "FoodDeliveryDataStream",
+                          env =cdk.Environment(account =account, region = region),
+                            )
 
+
+Aspects.of(app).add(AwsSolutionsChecks())
+Aspects.of(app).add(ServerlessChecks())
 
 app.synth()
