@@ -68,7 +68,6 @@ class FoodDeliveryStack(Stack):
             }]
         )
 
-        
 
         #NAG_Supression
         NagSuppressions.add_resource_suppressions(
@@ -126,16 +125,7 @@ class FoodDeliveryStack(Stack):
         )
         authorizer_lambda = authorizer_lambda_construct.lambda_fn
         
-        #NAG_Supression
-        NagSuppressions.add_resource_suppressions(
-            authorizer_lambda.role,
-            suppressions=[
-                {
-                    "id": "AwsSolutions-IAM5",
-                    "reason": "AWSLambdaBasicExecutionRole provides only CloudWatch logging permissions, equivalent to a custom role with minimal privileges."
-                }
-            ]
-        )
+       
 
 
         authorizer = apigw.TokenAuthorizer(self, "UserAuthorizer",
@@ -220,24 +210,7 @@ class FoodDeliveryStack(Stack):
         cancel_order_lambda = cancel_order_construct.lambda_fn
         table.grant_read_write_data(cancel_order_lambda)
 
-        #NAG Supression
-        lambda_functions = [
-            create_order_lambda,
-            edit_order_lambda,
-            list_order_lambda,
-            get_order_lambda,
-            cancel_order_lambda,
-            authorizer_lambda
-        ]
-
-        NagSuppressions.add_resource_suppressions(
-            [fn.role for fn in lambda_functions if fn.role],
-            suppressions=[{
-                "id": "AwsSolutions-IAM4",
-                "reason": "AWSLambdaBasicExecutionRole is the minimal AWS managed policy providing only CloudWatch Logs access, equivalent to a least-privilege custom role."
-            }],
-            apply_to_children=True
-        )
+        
 
         #API Gateway
         api = apigw.RestApi(

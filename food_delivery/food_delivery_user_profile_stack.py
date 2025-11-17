@@ -117,23 +117,7 @@ class AddressStack(Stack):
         )
         list_user_addresses_lambda = list_user_addresses_construct.lambda_fn
         address_table.grant_read_data(list_user_addresses_lambda)
-        #Nag Suppression
-        lambda_functions = [
-                add_address_lambda,
-                edit_address_lambda,
-                delete_address_lambda,
-                list_user_addresses_lambda
-            ]
-
-        for fn in lambda_functions:
-            if fn.role:
-                NagSuppressions.add_resource_suppressions(
-                        fn.role,
-                        suppressions=[{
-                            "id": "AwsSolutions-IAM4",
-                            "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for CloudWatch logging, equivalent to a least-privilege custom role."
-                        }]
-                    )
+        
 
         #API Gateway for Address Management
         address_api = apigw.RestApi(

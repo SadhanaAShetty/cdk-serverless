@@ -221,15 +221,6 @@ class FavoritesStack(Stack):
             error_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarms_topic))
 
         #Nag Suppression
-        for fn in [list_user_favorites_lambda, process_favorites_queue_lambda]:
-            if fn.role:
-                NagSuppressions.add_resource_suppressions(
-                    fn.role,
-                    suppressions=[{
-                        "id": "AwsSolutions-IAM4",
-                        "reason": "AWSLambdaBasicExecutionRole provides minimal CloudWatch logging; safe for this use case."
-                    }]
-                )
 
         NagSuppressions.add_resource_suppressions(
             favorites_api,

@@ -107,20 +107,7 @@ class FoodDeliveryDataStream(Stack):
             )
         )
 
-        #Nag Suppression
-        lambda_functions = [
-            kinesis_consumer,
-            kinesis_producer
-        ]
-
-        NagSuppressions.add_resource_suppressions(
-            [fn.role for fn in lambda_functions if fn.role],
-            suppressions=[{
-                "id": "AwsSolutions-IAM4",
-                "reason": "AWSLambdaBasicExecutionRole is the minimal AWS managed policy providing only CloudWatch Logs access, equivalent to a least-privilege custom role."
-            }],
-            apply_to_children=True
-        )
+       
 
         # Outputs
         CfnOutput(self, "KinesisStreamName", value=kinesis_stream.stream_name)
