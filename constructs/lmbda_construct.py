@@ -73,6 +73,20 @@ class LambdaConstruct(Construct):
             tracing=lmbda.Tracing.DISABLED,  
         )
 
+        # NAG Suppressions for Lambda function
+        NagSuppressions.add_resource_suppressions(
+            self.lambda_fn,
+            suppressions=[
+                {
+                    "id": "Serverless-LambdaTracing",
+                    "reason": (
+                        "X-Ray tracing is intentionally disabled to reduce costs. "
+                        "CloudWatch Logs with Powertools structured logging provides sufficient observability."
+                    )
+                }
+            ]
+        )
+
         # NAG Suppressions for Lambda IAM role
         if self.lambda_fn.role:
             NagSuppressions.add_resource_suppressions(

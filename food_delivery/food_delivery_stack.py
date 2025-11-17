@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_logs as logs,
     aws_sns as sns,
+    aws_sqs as sqs,
     aws_iam as iam,
     aws_ssm as ssm,
     aws_sns_subscriptions as sns_subscriptions,
@@ -294,21 +295,48 @@ class FoodDeliveryStack(Stack):
             ),
             logging_level=apigw.MethodLoggingLevel.INFO,
             data_trace_enabled=True,
-            metrics_enabled=True
+            metrics_enabled=True,
+            throttling_rate_limit=1000,
+            throttling_burst_limit=2000
         )
         api.deployment_stage = stage
 
-        #Nag Suppression
+        #Nag Suppression for API Gateway
         NagSuppressions.add_resource_suppressions(
             api,
-            suppressions=[{
-                "id": "AwsSolutions-APIG2",
-                "reason": (
-                    "Input and authorization validation are implemented within the Lambda authorizer, "
-                    "which performs signature, expiry, audience, and group membership checks on tokens. "
-                    "Therefore, API Gateway request validation is redundant."
-                )
-            }]
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG2",
+                    "reason": (
+                        "Input and authorization validation are implemented within the Lambda authorizer, "
+                        "which performs signature, expiry, audience, and group membership checks on tokens. "
+                        "Therefore, API Gateway request validation is redundant."
+                    )
+                },
+                {
+                    "id": "CdkNagValidationFailure",
+                    "reason": "Known CDK-nag limitation with intrinsic functions in API Gateway logging configuration."
+                }
+            ]
+        )
+
+        #Nag Suppression for API Gateway Stage
+        NagSuppressions.add_resource_suppressions(
+            stage,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG3",
+                    "reason": "WAF is not required for this development/learning project. It adds significant cost without proportional benefit for the use case."
+                },
+                {
+                    "id": "AwsSolutions-APIG1",
+                    "reason": "Access logging is already enabled via CloudWatch Logs."
+                },
+                {
+                    "id": "Serverless-APIGWXrayEnabled",
+                    "reason": "X-Ray tracing is disabled to reduce costs. CloudWatch Logs and metrics provide sufficient observability for this use case."
+                }
+            ]
         )
 
         #Nag Suppression
@@ -334,6 +362,29 @@ class FoodDeliveryStack(Stack):
             string_parameter_name="/ses/parameter/email/receiver"
         ).string_value
 
+        # DLQ for SNS subscription failures
+        sns_dlq = sqs.Queue(
+            self, "AlarmsSNSDLQ",
+            queue_name="food-delivery-alarms-sns-dlq",
+            retention_period=Duration.days(14),
+            enforce_ssl=True
+        )
+
+        # Suppress DLQ warnings for this queue since it IS a DLQ
+        NagSuppressions.add_resource_suppressions(
+            sns_dlq,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-SQS3",
+                    "reason": "This queue IS a dead letter queue for SNS subscription failures. It doesn't need its own DLQ."
+                },
+                {
+                    "id": "Serverless-SQSRedrivePolicy",
+                    "reason": "This is a DLQ itself. Adding another DLQ would create unnecessary complexity for alarm notifications."
+                }
+            ]
+        )
+
         alarms_topic = sns.Topic(self, "FoodDeliveryAlarms",
             topic_name="food-delivery-alarms",
             display_name="Food Delivery Monitoring Alarms",
@@ -341,7 +392,10 @@ class FoodDeliveryStack(Stack):
         )
 
         alarms_topic.add_subscription(
-            sns_subscriptions.EmailSubscription(receiver)
+            sns_subscriptions.EmailSubscription(
+                receiver,
+                dead_letter_queue=sns_dlq
+            )
         )
         
         #cloudWatch alarm for API gateway 5XX errors
