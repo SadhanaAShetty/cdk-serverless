@@ -49,7 +49,23 @@ class FavoritesStack(Stack):
         favorites_dlq = sqs.Queue(
             self, "FavoritesDLQ",
             queue_name="food-delivery-favorites-dlq",
-            retention_period=Duration.days(14)
+            retention_period=Duration.days(14),
+            enforce_ssl=True
+        )
+
+        # Suppress DLQ warnings for this queue since it IS a DLQ
+        NagSuppressions.add_resource_suppressions(
+            favorites_dlq,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-SQS3",
+                    "reason": "This queue IS a dead letter queue for the favorites queue. It doesn't need its own DLQ."
+                },
+                {
+                    "id": "Serverless-SQSRedrivePolicy",
+                    "reason": "This is a DLQ itself. Adding another DLQ would create unnecessary complexity."
+                }
+            ]
         )
 
         # SQS Queue - FavoritesQueue with DLQ
@@ -59,6 +75,7 @@ class FavoritesStack(Stack):
             visibility_timeout=Duration.seconds(300),
             retention_period=Duration.days(14),
             receive_message_wait_time=Duration.seconds(20),
+            enforce_ssl=True,
             dead_letter_queue=sqs.DeadLetterQueue(
                 max_receive_count=3,
                 queue=favorites_dlq
@@ -111,6 +128,23 @@ class FavoritesStack(Stack):
                 batch_size=10,
                 max_batching_window=Duration.seconds(5)
             )
+        )
+
+        # Suppress event source mapping destination warning at stack level
+        NagSuppressions.add_resource_suppressions_by_path(
+            self,
+            path="/FavoritesStack/ProcessFavoritesQueueLambda/Lambda",
+            suppressions=[
+                {
+                    "id": "Serverless-LambdaEventSourceMappingDestination",
+                    "reason": (
+                        "Failed messages are already handled by the SQS queue's DLQ. "
+                        "The Lambda function also has its own DLQ for processing failures. "
+                        "Adding an event source mapping destination would be redundant."
+                    )
+                }
+            ],
+            apply_to_children=True
         )
 
         # API Gateway for Favorites Management

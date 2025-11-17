@@ -16,8 +16,8 @@ from cdk_nag import AwsSolutionsChecks, ServerlessChecks
 # from image_processing.image_processing_stack import ImageProcessingStack
 # # from loan_processing.loan_processing_stack import LoanProcessingStack
 # from food_delivery.food_delivery_stack import FoodDeliveryStack
-from food_delivery.food_delivery_user_profile_stack import AddressStack
-# from food_delivery.food_delivery_favorites_stack import FavoritesStack
+# from food_delivery.food_delivery_user_profile_stack import AddressStack
+from food_delivery.food_delivery_favorites_stack import FavoritesStack
 # from food_delivery.food_delivery_order_update_stack import FoodDeliveryOrderUpdate
 # from food_delivery.food_delivery_data_stream_stack import  FoodDeliveryDataStream
 
@@ -64,12 +64,12 @@ app = cdk.App()
 # stack_main = FoodDeliveryStack(app, "FoodDeliveryStack",
 #                              env =cdk.Environment(account =account, region = region),
 #                              )
-stack_user = AddressStack(app, "AddressStack",
-                          env =cdk.Environment(account =account, region = region),
-                            )
-# stack_address = FavoritesStack(app, "FavoritesStack",
-#                             env =cdk.Environment(account =account, region = region),
-# )
+# stack_user = AddressStack(app, "AddressStack",
+#                           env =cdk.Environment(account =account, region = region),
+#                             )
+stack_address = FavoritesStack(app, "FavoritesStack",
+                            env =cdk.Environment(account =account, region = region),
+)
 # stack_order_update = FoodDeliveryOrderUpdate(app, "FoodDeliveryOrderUpdate",
 #                           env =cdk.Environment(account =account, region = region),
 #                             )
