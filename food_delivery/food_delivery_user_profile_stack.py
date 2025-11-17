@@ -62,8 +62,7 @@ class AddressStack(Stack):
             env={
                 "ADDRESS_TABLE_NAME": address_table.table_name,
                 "EVENT_BUS_NAME": address_bus.event_bus_name
-            },
-            timeout=10
+            }
         )
         add_address_lambda = add_address_construct.lambda_fn
         address_table.grant_read_write_data(add_address_lambda)
@@ -79,8 +78,7 @@ class AddressStack(Stack):
             env={
                 "ADDRESS_TABLE_NAME": address_table.table_name,
                 "EVENT_BUS_NAME": address_bus.event_bus_name
-            },
-            timeout=10
+            }
         )
         edit_address_lambda = edit_address_construct.lambda_fn
         address_table.grant_read_write_data(edit_address_lambda)
@@ -96,8 +94,7 @@ class AddressStack(Stack):
             env={
                 "ADDRESS_TABLE_NAME": address_table.table_name,
                 "EVENT_BUS_NAME": address_bus.event_bus_name
-            },
-            timeout=10
+            }
         )
         delete_address_lambda = delete_address_construct.lambda_fn
         address_table.grant_read_write_data(delete_address_lambda)
@@ -112,8 +109,7 @@ class AddressStack(Stack):
             layers=[powertools_layer],
             env={
                 "ADDRESS_TABLE_NAME": address_table.table_name
-            },
-            timeout=10
+            }
         )
         list_user_addresses_lambda = list_user_addresses_construct.lambda_fn
         address_table.grant_read_data(list_user_addresses_lambda)

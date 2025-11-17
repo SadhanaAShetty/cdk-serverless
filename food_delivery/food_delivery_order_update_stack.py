@@ -45,8 +45,7 @@ class FoodDeliveryOrderUpdate(Stack):
             layers=[powertools_layer],
             env={
                 "TABLE_NAME": orders_table_name
-            },
-            timeout=10
+            }
         )
         update_lambda = update_lambda_construct.lambda_fn
 

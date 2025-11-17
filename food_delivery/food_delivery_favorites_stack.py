@@ -99,8 +99,7 @@ class FavoritesStack(Stack):
             env={
                 "TABLE_NAME": favorites_table.table_name,
                 "POWERTOOLS_SERVICE_NAME": "favorites-service"
-            },
-            timeout=10
+            }
         )
         list_user_favorites_lambda = list_user_favorites_construct.lambda_fn
         favorites_table.grant_read_data(list_user_favorites_lambda)

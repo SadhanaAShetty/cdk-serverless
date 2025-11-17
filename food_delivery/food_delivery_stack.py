@@ -121,8 +121,7 @@ class FoodDeliveryStack(Stack):
                 "USER_POOL_ID": user_pool.user_pool_id,
                 "APPLICATION_CLIENT_ID": user_pool_client.user_pool_client_id,
                 "ADMIN_GROUP_NAME": "admin"
-            },
-            timeout=10
+            }
         )
         authorizer_lambda = authorizer_lambda_construct.lambda_fn
         
@@ -144,8 +143,7 @@ class FoodDeliveryStack(Stack):
             layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=10
+            }
         )
         create_order_lambda = create_order_construct.lambda_fn
         table.grant_read_write_data(create_order_lambda)
@@ -160,8 +158,7 @@ class FoodDeliveryStack(Stack):
             layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=10
+            }
         )
         edit_order_lambda = edit_order_construct.lambda_fn
         table.grant_read_write_data(edit_order_lambda)
@@ -175,8 +172,7 @@ class FoodDeliveryStack(Stack):
             layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=10
+            }
         )
         list_order_lambda = list_order_construct.lambda_fn
         table.grant_read_data(list_order_lambda)
@@ -190,8 +186,7 @@ class FoodDeliveryStack(Stack):
             layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=10
+            }
         )
         get_order_lambda = get_order_construct.lambda_fn
         table.grant_read_data(get_order_lambda)
@@ -205,8 +200,7 @@ class FoodDeliveryStack(Stack):
             layers=[powertools_layer],
             env={
                 "TABLE_NAME": table.table_name
-            },
-            timeout=10
+            }
         )
         cancel_order_lambda = cancel_order_construct.lambda_fn
         table.grant_read_write_data(cancel_order_lambda)
