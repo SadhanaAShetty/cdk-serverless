@@ -8,7 +8,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from constructs.bucket import S3BucketConstruct
-from constructs.lmbda_construct import LambdaConstruct
+from constructs.lmbda_construct import Lambda
 
 
 class BlogPostGenAI(Stack):
@@ -22,24 +22,17 @@ class BlogPostGenAI(Stack):
         ).bucket
 
 
-        #Lambda Powertools layer
-        powertools_layer = lmbda.LayerVersion.from_layer_version_arn(
-            self,
-            "PowertoolsLayer",
-            "arn:aws:lambda:eu-west-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:79",
-        )
+       
 
         #Lambda 
-        blog_lambda = LambdaConstruct(
+        blog_lambda = Lambda(
             self, "BlogFunction",
             function_name="blog_post",
             handler="blog_post.lambda_handler",
             code_path="blogpost_genAI/assets",
-            layers=[powertools_layer],
             env={
                 "STATIC_BUCKET_NAME": self.static_site_bucket.bucket_name
             },
-            timeout=10
         )
         create_lambda = blog_lambda.lambda_fn
         self.static_site_bucket.grant_read_write(create_lambda)
@@ -56,7 +49,7 @@ class BlogPostGenAI(Stack):
             self, "BlogPostGenAI", rest_api_name="BlogPostGenAI", deploy=False
         )
 
-        task_resource = api.root.add_resource("blog")
+        task_resource = api.root.add_resource("create_blog")
         post_method = task_resource.add_method(
             "POST", apigw.LambdaIntegration(), api_key_required=True
         )
