@@ -7,7 +7,7 @@ from constructs import Construct
 from cdk_nag import NagSuppressions
 
 
-class LambdaConstruct(Construct):
+class Lambda(Construct):
     """
     A clean reusable Python Lambda construct that removes boilerplate.
 

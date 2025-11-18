@@ -1,14 +1,15 @@
 from aws_cdk import (
-    Stack, Duration, RemovalPolicy, CfnOutput,
+    Stack, CfnOutput,
     aws_apigateway as apigw,
-    aws_lambda as lmbda,
-    aws_logs as logs,
-    aws_cloudwatch as cloudwatch,
+    aws_iam as iam,
     aws_bedrock as bedrock
 )
 from constructs import Construct
 from constructs.bucket import S3BucketConstruct
 from constructs.lmbda_construct import Lambda
+from constructs.api_gateway_construct import ApiGatewayConstruct
+from cdk_nag import NagSuppressions
+
 
 
 class BlogPostGenAI(Stack):
@@ -28,7 +29,7 @@ class BlogPostGenAI(Stack):
         blog_lambda = Lambda(
             self, "BlogFunction",
             function_name="blog_post",
-            handler="blog_post.lambda_handler",
+            handler="bedrock_handler.lambda_handler",
             code_path="blogpost_genAI/assets",
             env={
                 "STATIC_BUCKET_NAME": self.static_site_bucket.bucket_name
@@ -36,62 +37,54 @@ class BlogPostGenAI(Stack):
         )
         create_lambda = blog_lambda.lambda_fn
         self.static_site_bucket.grant_read_write(create_lambda)
+        
+        # Grant Bedrock permissions to Lambda
+        create_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["bedrock:InvokeModel"],
+                resources=[
+                    f"arn:aws:bedrock:{self.region}::foundation-model/meta.llama3-2-1b-instruct-v1:0"
+                ]
+            )
+        )
 
-        #bedrock
+        # Bedrock Llama 3.2 model reference
         bedrock.FoundationModel.from_foundation_model_id(
             self, "Model", 
-            bedrock.FoundationModelIdentifier.ANTHROPIC_CLAUDE_V2
-            )
+            bedrock.FoundationModelIdentifier.META_LLAMA_3_2_1B_INSTRUCT_V1_0
+        )
         
-
-        #api
-        api = apigw.RestApi(
-            self, "BlogPostGenAI", rest_api_name="BlogPostGenAI", deploy=False
-        )
-
-        task_resource = api.root.add_resource("create_blog")
-        post_method = task_resource.add_method(
-            "POST", apigw.LambdaIntegration(), api_key_required=True
-        )
-
-        log_group = logs.LogGroup(self, "DevLogs", retention=logs.RetentionDays.ONE_DAY)
-
-        deployment = apigw.Deployment(self, "Deployment", api=api)
-
-        stage = apigw.Stage(
+        # API Gateway with construct
+        api_gateway = ApiGatewayConstruct(
             self,
-            "DevStage",
-            deployment=deployment,
-            stage_name="dev",
-            access_log_destination=apigw.LogGroupLogDestination(log_group),
-            access_log_format=apigw.AccessLogFormat.json_with_standard_fields(
-                caller=False,
-                http_method=True,
-                ip=True,
-                protocol=True,
-                request_time=True,
-                resource_path=True,
-                response_length=True,
-                status=True,
-                user=True,
-            ),
+            "BlogApi",
+            api_name="BlogPostGenAI",
+            description="API for AI-powered blog post generation",
+            throttling_rate_limit=10,
+            throttling_burst_limit=2
         )
 
-        api.deployment_stage = stage
+        # Add resource and method
+        task_resource = api_gateway.api.root.add_resource("create_blog")
+        post_method = api_gateway.add_method_with_auth_suppression(
+            resource=task_resource,
+            method="POST",
+            integration=apigw.LambdaIntegration(create_lambda),
+            api_key_required=True
+        )
 
         # API Key & Usage Plan
-        key = api.add_api_key("ApiKey")
+        key = api_gateway.api.add_api_key("ApiKey")
 
-        plan = api.add_usage_plan(
+        plan = api_gateway.api.add_usage_plan(
             "UsagePlan",
             name="Easy",
             throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2),
         )
 
         plan.add_api_key(key)
-
         plan.add_api_stage(
-            stage=stage,
+            stage=api_gateway.stage,
             throttle=[
                 apigw.ThrottlingPerMethod(
                     method=post_method,
@@ -103,3 +96,38 @@ class BlogPostGenAI(Stack):
 
    
 
+
+        # CDK-nag Suppressions for S3 Bucket
+        NagSuppressions.add_resource_suppressions(
+            self.static_site_bucket,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-S1",
+                    "reason": (
+                        "S3 access logs are not required for this personal blog storage bucket. "
+                        "The bucket only stores generated blog posts and doesn't need audit logging."
+                    )
+                }
+            ]
+        )
+
+        # CDK-nag Suppressions for Lambda IAM Role
+        if create_lambda.role:
+            NagSuppressions.add_resource_suppressions(
+                create_lambda.role,
+                suppressions=[
+                    {
+                        "id": "AwsSolutions-IAM5",
+                        "reason": (
+                            "Wildcard S3 permissions are CDK-generated for read/write access "
+                            "to the blog bucket only."
+                        )
+                    }
+                ],
+                apply_to_children=True
+            )
+
+        # Outputs
+        CfnOutput(self, "ApiUrl", value=api_gateway.api.url, description="API Gateway URL")
+        CfnOutput(self, "ApiKeyId", value=key.key_id, description="API Key ID")
+        CfnOutput(self, "BucketName", value=self.static_site_bucket.bucket_name, description="Blog Storage Bucket")

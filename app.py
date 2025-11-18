@@ -3,6 +3,8 @@ import os
 
 import aws_cdk as cdk
 from dotenv import load_dotenv
+from aws_cdk import App, Aspects
+from cdk_nag import AwsSolutionsChecks, ServerlessChecks
 
 # from order_processing.order_processing_frontend_stack import OrderProcessingFrontendStack
 # from order_processing.order_processing_backend_stack import OrderProcessingBackendStack
@@ -83,5 +85,7 @@ stack =BlogPostGenAI(app, "BlogPostGenAI",
                      )
 
 
+Aspects.of(app).add(AwsSolutionsChecks())
+Aspects.of(app).add(ServerlessChecks())
 
 app.synth()
