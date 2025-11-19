@@ -23,7 +23,6 @@ class BlogPostGenAI(Stack):
         ).bucket
 
 
-       
 
         #Lambda 
         blog_lambda = Lambda(
@@ -38,21 +37,16 @@ class BlogPostGenAI(Stack):
         create_lambda = blog_lambda.lambda_fn
         self.static_site_bucket.grant_read_write(create_lambda)
         
-        # Grant Bedrock permissions to Lambda
+        
         create_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["bedrock:InvokeModel"],
                 resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/meta.llama3-2-1b-instruct-v1:0"
+                    f"arn:aws:bedrock:{self.region}::foundation-model/meta.llama3-2-1b-instruct-v1:0*"
                 ]
             )
         )
 
-        # Bedrock Llama 3.2 model reference
-        bedrock.FoundationModel.from_foundation_model_id(
-            self, "Model", 
-            bedrock.FoundationModelIdentifier.META_LLAMA_3_2_1B_INSTRUCT_V1_0
-        )
         
         # API Gateway with construct
         api_gateway = ApiGatewayConstruct(
@@ -64,33 +58,25 @@ class BlogPostGenAI(Stack):
             throttling_burst_limit=2
         )
 
-        # Add resource and method
+        # Add resource and method (no API key for testing)
         task_resource = api_gateway.api.root.add_resource("create_blog")
         post_method = api_gateway.add_method_with_auth_suppression(
             resource=task_resource,
             method="POST",
             integration=apigw.LambdaIntegration(create_lambda),
-            api_key_required=True
+            api_key_required=False,
+            suppress_cognito_warning=True
         )
-
-        # API Key & Usage Plan
-        key = api_gateway.api.add_api_key("ApiKey")
-
-        plan = api_gateway.api.add_usage_plan(
-            "UsagePlan",
-            name="Easy",
-            throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2),
-        )
-
-        plan.add_api_key(key)
-        plan.add_api_stage(
-            stage=api_gateway.stage,
-            throttle=[
-                apigw.ThrottlingPerMethod(
-                    method=post_method,
-                    throttle=apigw.ThrottleSettings(rate_limit=10, burst_limit=2),
-                )
-            ],
+        
+        # Additional suppression for no auth (testing only)
+        NagSuppressions.add_resource_suppressions(
+            post_method,
+            suppressions=[
+                {
+                    "id": "AwsSolutions-APIG4",
+                    "reason": "No authorization for testing purposes. This is a personal project for Postman testing."
+                }
+            ]
         )
 
 
@@ -128,6 +114,13 @@ class BlogPostGenAI(Stack):
             )
 
         # Outputs
-        CfnOutput(self, "ApiUrl", value=api_gateway.api.url, description="API Gateway URL")
-        CfnOutput(self, "ApiKeyId", value=key.key_id, description="API Key ID")
-        CfnOutput(self, "BucketName", value=self.static_site_bucket.bucket_name, description="Blog Storage Bucket")
+        CfnOutput(
+            self, "ApiUrl", 
+            value=f"{api_gateway.api.url}create_blog",
+            description="API Gateway endpoint for blog generation (no API key required for testing)"
+        )
+        CfnOutput(
+            self, "BucketName", 
+            value=self.static_site_bucket.bucket_name,
+            description="S3 bucket where generated blogs are stored"
+        )
