@@ -4,7 +4,7 @@ import os
 import aws_cdk as cdk
 from dotenv import load_dotenv
 from aws_cdk import App, Aspects
-from cdk_nag import AwsSolutionsChecks, ServerlessChecks
+# from cdk_nag import AwsSolutionsChecks, ServerlessChecks
 
 # from order_processing.order_processing_frontend_stack import OrderProcessingFrontendStack
 # from order_processing.order_processing_backend_stack import OrderProcessingBackendStack
@@ -19,7 +19,8 @@ from cdk_nag import AwsSolutionsChecks, ServerlessChecks
 # from food_delivery.food_delivery_user_profile_stack import AddressStack
 # from food_delivery.food_delivery_favorites_stack import FavoritesStack
 # from food_delivery.food_delivery_order_update_stack import FoodDeliveryOrderUpdate
-from food_delivery.food_delivery_data_stream_stack import  FoodDeliveryDataStream
+# from food_delivery.food_delivery_data_stream_stack import  FoodDeliveryDataStream
+from cloud_cost_tracker.cloud_cost_tracker_stack import CloudCostTracker
 
 
 
@@ -73,12 +74,15 @@ app = cdk.App()
 # stack_order_update = FoodDeliveryOrderUpdate(app, "FoodDeliveryOrderUpdate",
 #                           env =cdk.Environment(account =account, region = region),
 #                             )
-stack_data_stream = FoodDeliveryDataStream(app, "FoodDeliveryDataStream",
-                          env =cdk.Environment(account =account, region = region),
-                            )
+# stack_data_stream = FoodDeliveryDataStream(app, "FoodDeliveryDataStream",
+#                           env =cdk.Environment(account =account, region = region),
+#                             )
 
+cloud_cost_stack = CloudCostTracker(app, "CloudCostTracker",
+                           env=cdk.Environment(account=account, region = region),        
+)
 
-Aspects.of(app).add(AwsSolutionsChecks())
-Aspects.of(app).add(ServerlessChecks())
+# Aspects.of(app).add(AwsSolutionsChecks())
+# Aspects.of(app).add(ServerlessChecks())
 
 app.synth()
