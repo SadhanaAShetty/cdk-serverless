@@ -45,7 +45,8 @@ class CloudCostTracker(Stack):
             handler="cost_handler.lambda_handler",
             code_path="cloud_cost_tracker/assets",
             env={
-                "ALERT_TOPIC_ARN": alert_topic.topic_arn
+                "ALERT_TOPIC_ARN": alert_topic.topic_arn,
+                "COST_THRESHOLD": "100.0"  # Alert if daily cost exceeds $100
             }
         )
 
@@ -63,6 +64,14 @@ class CloudCostTracker(Stack):
 
         # Allow Lambda to publish to SNS
         alert_topic.grant_publish(cost_lambda)
+        
+        # Grant Lambda permissions to access Cost Explorer
+        cost_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ce:GetCostAndUsage"],
+                resources=["*"]
+            )
+        )
 
        
         # CloudWatch Dashboard
