@@ -5,12 +5,12 @@ from aws_cdk import (
     aws_events_targets as targets,
     aws_sns as sns,
     aws_sns_subscriptions as subs,
-    aws_cloudwatch_dashboards as dashboards,
     aws_cloudwatch as cloudwatch,
+    aws_ssm as ssm
 )
 from constructs import Construct
 
-from cdk_nag import NagSuppressions
+# from cdk_nag import NagSuppressions
 from constructs import Construct
 from constructs.lmbda_construct import Lambda 
 
@@ -19,11 +19,22 @@ class CloudCostTracker(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        receiver = ssm.StringParameter.from_string_parameter_name(
+            self, "SesReceiverIdentityParam",
+            string_parameter_name="/ses/parameter/email/receiver"
+        ).string_value
+
         # SNS Topic for alerts
         alert_topic = sns.Topic(
             self,
             "CostAlertTopic",
             display_name="CloudCostTracker Alerts",
+            enforce_ssl=True
+        )
+        
+        # Add email subscription (replace with your email)
+        alert_topic.add_subscription(
+            subs.EmailSubscription(receiver)
         )
 
         # Lambda using your custom construct
@@ -33,7 +44,7 @@ class CloudCostTracker(Stack):
             function_name="cost_handler",
             handler="cost_handler.lambda_handler",
             code_path="cloud_cost_tracker/assets",
-            environment={
+            env={
                 "ALERT_TOPIC_ARN": alert_topic.topic_arn
             }
         )
@@ -55,13 +66,13 @@ class CloudCostTracker(Stack):
 
        
         # CloudWatch Dashboard
-       
-        dashboard = dashboards.Dashboard(
+        dashboard = cloudwatch.Dashboard(
             self,
             "CloudCostTrackerDashboard",
             dashboard_name="CloudCostTrackerDashboard",
         )
 
+        
         # Daily cost metric
         daily_cost_widget = cloudwatch.GraphWidget(
             title="Daily AWS Cost",
@@ -69,6 +80,7 @@ class CloudCostTracker(Stack):
                 cloudwatch.Metric(
                     namespace="CloudCostTracker",
                     metric_name="DailyCost",
+                    dimensions_map={"service": "cloudcost-tracker"}, 
                     statistic="Average",
                 )
             ],
@@ -82,11 +94,13 @@ class CloudCostTracker(Stack):
                 cloudwatch.Metric(
                     namespace="CloudCostTracker",
                     metric_name="CostAnomaly",
+                    dimensions_map={"service": "cloudcost-tracker"},  
                     statistic="Maximum",
                 )
             ],
             width=12,
         )
+
 
         # Logs widget
         logs_widget = cloudwatch.LogQueryWidget(
