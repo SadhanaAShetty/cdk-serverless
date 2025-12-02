@@ -5,7 +5,7 @@ datetime
 boto3
 python-jose
 pytest>=7
-moto==5.1.17
+moto==5.1.18
 pytest-freezegun
 requests
 aws-lambda-powertools
