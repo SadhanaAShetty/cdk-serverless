@@ -4,13 +4,11 @@ import os
 import aws_cdk as cdk
 from dotenv import load_dotenv
 from aws_cdk import App, Aspects
-# from cdk_nag import AwsSolutionsChecks, ServerlessChecks
+from cdk_nag import AwsSolutionsChecks, ServerlessChecks
 
 # from order_processing.order_processing_frontend_stack import OrderProcessingFrontendStack
 # from order_processing.order_processing_backend_stack import OrderProcessingBackendStack
 # from notify_my_turn.notify_my_turn import NotifyMyTurnStack
-
-
 # from loan_processor2.loan_processing_stack import LoanProcessingStack
 # from loan_processor3.loan_processing_stack import LoanProcessingStack
 # from image_processing.image_processing_stack import ImageProcessingStack
@@ -91,7 +89,7 @@ cloud_cost_stack = CloudCostTracker(app, "CloudCostTracker",
                            env=cdk.Environment(account=account, region = region),        
 )
 
-# Aspects.of(app).add(AwsSolutionsChecks())
-# Aspects.of(app).add(ServerlessChecks())
+Aspects.of(app).add(AwsSolutionsChecks())
+Aspects.of(app).add(ServerlessChecks())
 
 app.synth()

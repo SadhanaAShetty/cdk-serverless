@@ -1,17 +1,18 @@
 from aws_cdk import (
     Stack,
+    Duration,
     aws_iam as iam,
     aws_events as events,
     aws_events_targets as targets,
     aws_sns as sns,
+    aws_sqs as sqs,
     aws_sns_subscriptions as subs,
     aws_cloudwatch as cloudwatch,
     aws_ssm as ssm
 )
 from constructs import Construct
 
-# from cdk_nag import NagSuppressions
-from constructs import Construct
+from cdk_nag import NagSuppressions
 from constructs.lmbda_construct import Lambda 
 
 
@@ -32,10 +33,8 @@ class CloudCostTracker(Stack):
             enforce_ssl=True
         )
         
-        # Add email subscription (replace with your email)
-        alert_topic.add_subscription(
-            subs.EmailSubscription(receiver)
-        )
+        # Add email subscription
+        alert_topic.add_subscription(subs.EmailSubscription(receiver))
 
         # Lambda using your custom construct
         cost_handler = Lambda(
@@ -46,11 +45,12 @@ class CloudCostTracker(Stack):
             code_path="cloud_cost_tracker/assets",
             env={
                 "ALERT_TOPIC_ARN": alert_topic.topic_arn,
-                "COST_THRESHOLD": "100.0"  # Alert if daily cost exceeds $100
+                "COST_THRESHOLD": "10.0",
+                "FORCE_FAKE_COST": "true"
             }
         )
 
-       
+        # This is the actual Lambda function object
         cost_lambda = cost_handler.lambda_fn
 
         # EventBridge rule – runs daily at midnight UTC
@@ -59,8 +59,34 @@ class CloudCostTracker(Stack):
             "DailyCostCheck",
             schedule=events.Schedule.cron(minute="0", hour="0")
         )
+        # Add DLQ for EventBridge target
+        event_dlq = sqs.Queue(
+            self, "DailyCostCheckDLQ",
+            retention_period=Duration.days(14),
+            enforce_ssl=True
+        )
 
-        rule.add_target(targets.LambdaFunction(cost_lambda))
+        rule.add_target(
+            targets.LambdaFunction(
+                cost_lambda,
+                dead_letter_queue=event_dlq
+            )
+        )
+
+        # SNS subscription DLQ (with SSL enforced)
+        sns_dlq = sqs.Queue(
+            self, "CostAlertSubscriptionDLQ",
+            retention_period=Duration.days(14),
+            enforce_ssl=True
+        )
+
+        # Attach DLQ to Lambda subscription
+        alert_topic.add_subscription(
+            subs.LambdaSubscription(
+                cost_lambda,
+                dead_letter_queue=sns_dlq
+            )
+        )
 
         # Allow Lambda to publish to SNS
         alert_topic.grant_publish(cost_lambda)
@@ -73,7 +99,6 @@ class CloudCostTracker(Stack):
             )
         )
 
-       
         # CloudWatch Dashboard
         dashboard = cloudwatch.Dashboard(
             self,
@@ -81,7 +106,6 @@ class CloudCostTracker(Stack):
             dashboard_name="CloudCostTrackerDashboard",
         )
 
-        
         # Daily cost metric
         daily_cost_widget = cloudwatch.GraphWidget(
             title="Daily AWS Cost",
@@ -110,8 +134,7 @@ class CloudCostTracker(Stack):
             width=12,
         )
 
-
-        # Logs widget
+        #ogs widget
         logs_widget = cloudwatch.LogQueryWidget(
             title="Lambda Log Events",
             log_group_names=[f"/aws/lambda/{cost_lambda.function_name}"],
@@ -127,3 +150,47 @@ class CloudCostTracker(Stack):
         dashboard.add_widgets(daily_cost_widget)
         dashboard.add_widgets(anomaly_widget)
         dashboard.add_widgets(logs_widget)
+
+        # Nag suppression: IAM wildcard only
+        NagSuppressions.add_resource_suppressions(
+            cost_lambda,
+            [
+                {
+                    "id": "AwsSolutions-IAM5",
+                    "reason": "Lambda requires wildcard permissions for CloudWatch Logs, Cost Explorer, and SNS publish actions."
+                }
+            ],
+            apply_to_children=True
+        )
+
+        # suppress DLQ warnings (Nag wants redrive on DLQs themselves)
+        for queue in [sns_dlq, event_dlq]:
+            NagSuppressions.add_resource_suppressions(
+                queue,
+                [
+                    {
+                        "id": "Serverless-SQSRedrivePolicy",
+                        "reason": "This queue is used as a DLQ; no further DLQ required."
+                    },
+                    {
+                        "id": "AwsSolutions-SQS3",
+                        "reason": "This queue is a DLQ, not intended for direct processing."
+                    }
+                ]
+            )
+
+        NagSuppressions.add_resource_suppressions(
+            alert_topic,
+            [
+                {
+                    "id": "Serverless-SNSRedrivePolicy",
+                    "reason": (
+                        "CDK creates a hidden TokenSubscription for the Lambda. "
+                        "It uses a DLQ at runtime, but Nag sees no RedrivePolicy on that hidden resource. "
+                        "Suppressing is safe."
+                    )
+                }
+            ],
+            apply_to_children=True
+        )
+

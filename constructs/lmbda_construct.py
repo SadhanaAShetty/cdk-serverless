@@ -30,7 +30,7 @@ class Lambda(Construct):
         code_path: str,
         env: dict = None,
         layers: list = None,
-        runtime: lmbda.Runtime = lmbda.Runtime.PYTHON_3_13,
+        runtime: lmbda.Runtime = lmbda.Runtime.PYTHON_3_14,
         timeout: int = 10,
         memory: int = 256,
     ):

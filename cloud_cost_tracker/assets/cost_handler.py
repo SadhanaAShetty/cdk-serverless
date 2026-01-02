@@ -12,14 +12,19 @@ metrics = Metrics(namespace="CloudCostTracker", service="cloudcost-tracker")
 ce_client = boto3.client("ce")
 sns_client = boto3.client("sns")
 ALERT_TOPIC_ARN = os.environ.get("ALERT_TOPIC_ARN")
-COST_THRESHOLD = float(os.environ.get("COST_THRESHOLD", "100.0"))
+COST_THRESHOLD = float(os.environ.get("COST_THRESHOLD", "10.0"))
+FORCE_FAKE_COST = os.environ.get("FORCE_FAKE_COST", "false").lower() == "true"
 
 @logger.inject_lambda_context
 @tracer.capture_lambda_handler
 @metrics.log_metrics(capture_cold_start_metric=True)
 def lambda_handler(event, context):
+    if FORCE_FAKE_COST:
+        daily_cost = simulate_daily_cost()
+        logger.info(f"FORCED Fake Cost: ${daily_cost:.2f}")
+    else:
     # Get yesterday's cost from Cost Explorer
-    daily_cost = get_daily_cost()
+        daily_cost = get_daily_cost()
     
     metrics.add_metric(
         name="DailyCost",
@@ -91,9 +96,9 @@ def send_alert(message):
         Subject="AWS Cost Alert"
     )   
 
-# def simulate_daily_cost():
-#     """Simulated cost for demo.""" 
-#     return random.uniform(4, 14)
+def simulate_daily_cost():
+    """Simulated cost for demo.""" 
+    return random.uniform(7, 27)
     
 
 
