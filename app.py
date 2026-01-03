@@ -9,8 +9,6 @@ from cdk_nag import AwsSolutionsChecks, ServerlessChecks
 # from order_processing.order_processing_frontend_stack import OrderProcessingFrontendStack
 # from order_processing.order_processing_backend_stack import OrderProcessingBackendStack
 # from notify_my_turn.notify_my_turn import NotifyMyTurnStack
-
-
 # from loan_processor2.loan_processing_stack import LoanProcessingStack
 # from loan_processor3.loan_processing_stack import LoanProcessingStack
 # from image_processing.image_processing_stack import ImageProcessingStack
@@ -20,7 +18,9 @@ from cdk_nag import AwsSolutionsChecks, ServerlessChecks
 # from food_delivery.food_delivery_favorites_stack import FavoritesStack
 # from food_delivery.food_delivery_order_update_stack import FoodDeliveryOrderUpdate
 # from food_delivery.food_delivery_data_stream_stack import  FoodDeliveryDataStream
-from blogpost_genAI.bedrock_genflow_stack import BlogPostGenAI
+# from blogpost_genAI.bedrock_genflow_stack import BlogPostGenAI
+from cloud_cost_tracker.cloud_cost_tracker_stack import CloudCostTracker
+
 
 
 
@@ -78,12 +78,16 @@ app = cdk.App()
 #                           env =cdk.Environment(account =account, region = region),
 #                             )
 
-
 #genai
-stack =BlogPostGenAI(app, "BlogPostGenAI",
-                     env = cdk.Environment(account = account, region = region),
-                     )
+# stack =BlogPostGenAI(app, "BlogPostGenAI",
+#                      env = cdk.Environment(account = account, region = region),
+#                      )
 
+
+
+cloud_cost_stack = CloudCostTracker(app, "CloudCostTracker",
+                           env=cdk.Environment(account=account, region = region),        
+)
 
 Aspects.of(app).add(AwsSolutionsChecks())
 Aspects.of(app).add(ServerlessChecks())
