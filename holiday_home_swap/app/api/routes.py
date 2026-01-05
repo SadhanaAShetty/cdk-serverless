@@ -67,3 +67,33 @@ def list_homes(db: Session = Depends(get_db)):
     Get all home listings
     """
     return db.query(Home).all()
+
+@router.get("/swap_bids", response_model=List[SwapBidResponse])
+def list_swap_bids(bid : SwapBidCreate, db: Session = Depends(get_db)):
+    """"
+    Get all swap bids
+    """
+    new_bids = SwapBid(
+        user_id = bid.user_id,
+        desired_location = bid.desired_location,
+        start_date = bid.start_date,
+        end_date = bid.end_date,
+        status = "pending"
+    )
+    db.add(new_bids)
+    db.commit()
+    db.refresh(new_bids)
+    return new_bids
+
+@router.get("/swap_bids/{bid_id}", response_model=SwapBidResponse)
+def get_swap_bid(bid_id: int, db: Session = Depends(get_db)):
+    """
+    Get a specific swap bid by ID
+    """
+    bid = db.query(SwapBid).filter(SwapBid.id == bid_id).first()
+    if not bid:
+        raise HTTPException(
+            status_code=404,
+            detail="Swap bid not found"
+        )
+    return bid
