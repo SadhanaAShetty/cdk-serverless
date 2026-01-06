@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-
 from app.db import get_db
-from app.models import User, Home, SwapBid
+from app.model import User, Home, SwapBid
 from app.schema import (
     UserCreate,
     UserResponse,
