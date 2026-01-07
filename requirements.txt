@@ -16,3 +16,7 @@ requests
 
 cdk-nag>=2.27.0
 
+pyjwt
+
+pwdlib[argon2]
+
