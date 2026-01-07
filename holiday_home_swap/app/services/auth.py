@@ -23,7 +23,8 @@ from app.schema import (
 
 
 # openssl rand -hex 32
-SECRET_KEY = "2e3e01575e1bda9cc135581c575570316f471d1d6ced9a9d822d774a94dffae8"
+#dummy hash key, replace in production
+SECRET_KEY = "kwbndiwdhojwmkjhbdguftygvbhjniuygvbhjnuhdgyvjniuhdjciuhgybhdnjcuhygvbhncyguv"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 10
 
