@@ -17,7 +17,8 @@ from app.schema import (
     HomeResponse,
     SwapBidCreate,
     SwapBidResponse,
-    UserInDB
+    UserInDB,
+    TokenData
 )
 
 
@@ -74,3 +75,21 @@ def create_access_token(data : dict, expires_delta: timedelta | None = None):
     to_encode.update({"exp" : expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    credential_exception = HTTPException(
+        status_code = status.HTTP_401_UNAUTHORIZED,
+        detail = "Could not validate credentials",
+        headers = {"WWW-Authenticate": "Bearer"}
+    )
+    try:
+        payload = jwt.decade(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email : str = payload.get("sub")
+        if email is None:
+            raise credential_exception
+        
+        token_data = TokenData(email=email)
+    except JWTError:
+        raise credential_exception
+    
+  
