@@ -31,11 +31,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 10
 
 
 
-
-
-
-
-
 password_hash = PasswordHash.recommended()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -76,7 +71,7 @@ def create_access_token(data : dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+async def get_current_user(db, token: Annotated[str, Depends(oauth2_scheme)]):
     credential_exception = HTTPException(
         status_code = status.HTTP_401_UNAUTHORIZED,
         detail = "Could not validate credentials",
@@ -92,4 +87,28 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     except JWTError:
         raise credential_exception
     
-  
+    user = get_user(db, email=token_data.email)
+    
+    if user is None:
+        raise credential_exception
+    return user
+
+async def get_current_active_user(current_user: Annotated[User, Depends(get_current_user)]):
+    if current_user.disabled:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+
+@app.post("/token", response_model = Token)
+async def login_for_access_token(db, form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code = status.HTTP_401_UNAUTHORIZED,
+            detail = "Incorrect username or password",
+            headers = {"WWW-Authenticate": "Bearer"}        
+        )
+    access_token_expires = timedelta(minutes = ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data = {"sub": user.email}, expires_delta= access_token_expires)
+    return {"access_token" : access_token, "token_type":"bearer"}
+
