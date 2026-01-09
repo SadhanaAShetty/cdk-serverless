@@ -11,7 +11,11 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)  
     verified = Column(Integer, default=0)  # 0 = no, 1 = yes
+    preferences = Column(JSON, nullable=True)  
+    notification_settings = Column(JSON, nullable=True) 
+    profile_complete = Column(Integer, default=0) # 0 = no, 1 = yes
 
     homes = relationship("Home", back_populates="owner")
     bids = relationship("SwapBid", back_populates="user")
@@ -22,11 +26,13 @@ class Home(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-
     name = Column(String, nullable=False)
     location = Column(String, nullable=False)
     photos = Column(JSON, nullable=False)
-
+    room_count = Column(Integer, nullable=False) 
+    home_type = Column(String, nullable=False) 
+    amenities = Column(JSON, nullable=True)  
+    house_rules = Column(JSON, nullable=True) 
     available_from = Column(DateTime, nullable=False)
     available_to = Column(DateTime, nullable=False)
 
@@ -38,11 +44,9 @@ class SwapBid(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-
     desired_location = Column(String, nullable=False)
     start_date = Column(DateTime, nullable=False)
     end_date = Column(DateTime, nullable=False)
-
     status = Column(String, default="pending")  # pending, accepted, rejected
 
     user = relationship("User", back_populates="bids")
@@ -54,7 +58,6 @@ class SwapMatch(Base):
     id = Column(Integer, primary_key=True, index=True)
     bid_a_id = Column(Integer, ForeignKey("swap_bids.id"), nullable=False)
     bid_b_id = Column(Integer, ForeignKey("swap_bids.id"), nullable=False)
-
     status = Column(String, default="proposed")  # proposed, confirmed, cancelled
     match_date = Column(DateTime, default=datetime.utcnow)
 
