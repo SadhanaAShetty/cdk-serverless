@@ -6,6 +6,7 @@ from aws_cdk import (
     CfnOutput
 )
 from constructs import Construct
+from constructs.bucket import S3BucketConstruct
 
 
 
@@ -16,11 +17,12 @@ class HomeSwapStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         # S3 Bucket for home images
-        self.images_bucket = s3.Bucket(
-            self, "HomeImagesBucket",
-            removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True
-        )
+        self.static_site_bucket = S3BucketConstruct(
+            self,
+            "HomeImagesBucket",
+            bucket_name="home-image-bucket"
+        ).bucket
+
 
         # SNS Topic for notifications
         self.notification_topic = sns.Topic(
