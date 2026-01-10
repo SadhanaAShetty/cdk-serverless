@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -9,6 +10,10 @@ class Settings(BaseSettings):
     
     # Application
     REPORTS_DIR: str = "house_pictures"
+    
+    # AWS SES
+    AWS_REGION: Optional[str] = "eu-west-1"
+    SES_SENDER_EMAIL: Optional[str] = None
     
     class Config:
         env_file = ".env"

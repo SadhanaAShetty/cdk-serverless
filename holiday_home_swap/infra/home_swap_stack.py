@@ -2,6 +2,7 @@ from aws_cdk import (
     Stack,
     aws_s3 as s3,
     aws_sns as sns,
+    aws_ssm as ssm,
     RemovalPolicy,
     CfnOutput
 )
@@ -29,6 +30,12 @@ class HomeSwapStack(Stack):
             self, "HomeSwapNotifications",
             topic_name="home-swap-matches"
         )
+        
+        #email verified and stored in ssm
+        sender = ssm.StringParameter.from_string_parameter_name(
+            self, "SesReceiverIdentityParam",
+            string_parameter_name="/ses/parameter/email/sender"
+        ).string_value
 
         
         
