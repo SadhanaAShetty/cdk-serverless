@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.models import SwapBid, SwapMatch, Home
+from app.model import SwapBid, Home
 
 
 def dates_overlap(start1, end1, start2, end2):
@@ -10,8 +10,8 @@ def find_matching_bids(db: Session, new_bid: SwapBid) -> list[SwapBid]:
     """
     Find swap bids that match the new bid
     """
-    homes= db.query(Home).filter(Home.location == new_bid.desired_location).all()
-    owner_ids = {home.user_id for home in homes}
+    homes = db.query(Home).filter(Home.location == new_bid.desired_location).all()
+    owner_ids = {home.owner_id for home in homes}
 
     potential_bids = db.query(SwapBid).filter(
         SwapBid.status == "pending",

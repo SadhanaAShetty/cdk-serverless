@@ -57,7 +57,7 @@ Generate blog posts using AWS Bedrock's llm model via REST API.
 
 **Performance:** ~1-2 seconds per blog generation
 
-[📖 Full Documentation](blogpost_genAI/README.md)
+
 
 
 ---
