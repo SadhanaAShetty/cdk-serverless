@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.db import get_db
 from app.model import User, Home, SwapBid
+from app.services.swap import create_swap_match
 from app.schema import (
     UserCreate,
     UserLogin,
@@ -139,22 +140,41 @@ def list_homes(db: Session = Depends(get_db)):
     """
     return db.query(Home).all()
 
-@router.get("/swap_bids", response_model=List[SwapBidResponse])
-def list_swap_bids(bid : SwapBidCreate, db: Session = Depends(get_db)):
-    """"
-    Get all swap bids
+@router.post("/swap_bids", response_model=SwapBidResponse)
+def create_swap_bid(
+    bid: SwapBidCreate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
     """
-    new_bids = SwapBid(
-        user_id = bid.user_id,
-        desired_location = bid.desired_location,
-        start_date = bid.start_date,
-        end_date = bid.end_date,
-        status = "pending"
+    Create a new swap bid 
+    """
+    new_bid = SwapBid(
+        user_id=current_user.id,  
+        desired_location=bid.desired_location,
+        start_date=bid.start_date,
+        end_date=bid.end_date,
+        status="pending"
     )
-    db.add(new_bids)
+    
+    db.add(new_bid)
     db.commit()
-    db.refresh(new_bids)
-    return new_bids
+    db.refresh(new_bid)
+    
+    # Try to find matches for this new bid
+    create_swap_match(db, new_bid)
+    
+    return new_bid
+
+@router.get("/swap_bids", response_model=List[SwapBidResponse])
+def list_my_swap_bids(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current user's swap bids
+    """
+    return db.query(SwapBid).filter(SwapBid.user_id == current_user.id).all()
 
 @router.get("/swap_bids/{bid_id}", response_model=SwapBidResponse)
 def get_swap_bid(bid_id: int, db: Session = Depends(get_db)):

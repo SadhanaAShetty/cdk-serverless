@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.config import settings
-from app.models import Base
+from app.model import Base
 
 # Create SQLite engine
 engine = create_engine(
