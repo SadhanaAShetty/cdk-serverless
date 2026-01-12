@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime
 from app.db import get_db
 from app.model import User, Home, SwapBid
 from app.services.swap import create_swap_match
@@ -9,10 +11,8 @@ from app.schema import (
     UserLogin,
     UserResponse,
     UserPreferences,
-    NotificationSettings,
     HomeCreate,
     HomeResponse,
-    HouseRules,
     SwapBidCreate,
     SwapBidResponse,
     Token
@@ -60,10 +60,18 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
     return login_user(db, user_login.email, user_login.password)
 
 
+@router.post("/auth/token", response_model=Token)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """
+    Login user and return JWT token
+    """
+    return login_user(db, form_data.username, form_data.password)
+
+
 @router.get("/auth/me", response_model=UserResponse)
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
-    Get current user information (protected route)
+    Get current user information 
     """
     return current_user
 
@@ -106,6 +114,19 @@ def create_home(home: HomeCreate, db: Session = Depends(get_db), current_user: U
     """
     Create new home listing with enhanced details (protected route)
     """
+    # Validate dates
+    if home.available_from >= home.available_to:
+        raise HTTPException(
+            status_code=400,
+            detail="Available to date must be after available from date"
+        )
+    
+    if home.available_from < datetime.now():
+        raise HTTPException(
+            status_code=400,
+            detail="Available from date must be in the future"
+        )
+    
     # Convert house_rules to dict if provided
     house_rules_dict = home.house_rules.dict() if home.house_rules else None
     
@@ -149,6 +170,27 @@ def create_swap_bid(
     """
     Create a new swap bid 
     """
+    # Validate dates
+    if bid.start_date >= bid.end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="End date must be after start date"
+        )
+    
+    if bid.start_date < datetime.now():
+        raise HTTPException(
+            status_code=400,
+            detail="Start date must be in the future"
+        )
+    
+    # Check if user has at least one home to swap
+    user_homes = db.query(Home).filter(Home.owner_id == current_user.id).all()
+    if not user_homes:
+        raise HTTPException(
+            status_code=400,
+            detail="You must have at least one home listed to create a swap bid"
+        )
+    
     new_bid = SwapBid(
         user_id=current_user.id,  
         desired_location=bid.desired_location,

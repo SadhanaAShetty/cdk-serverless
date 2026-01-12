@@ -1,5 +1,5 @@
 # Holiday Home Swap API
-
+## CURRENTLY WORKING ON THIS PROJECT! IT IS NOT COMPLETED.
 A FastAPI-based platform for home exchange between travelers. Users can list their homes, create swap requests, and get matched with other homeowners for mutual exchanges.
 
 ## Features

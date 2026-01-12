@@ -21,7 +21,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 15
 password_hash = PasswordHash.recommended()
 
 # OAuth2 scheme for token authentication
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
