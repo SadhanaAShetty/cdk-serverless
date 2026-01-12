@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
 from app.db import get_db
-from app.model import User, Home, SwapBid
+from app.model import User, Home, SwapBid, SwapMatch
 from app.services.swap import create_swap_match
 from app.schema import (
     UserCreate,
@@ -15,7 +15,11 @@ from app.schema import (
     HomeResponse,
     SwapBidCreate,
     SwapBidResponse,
-    Token
+    Token,
+    SwapMatchResponse, 
+    MatchDetailResponse, 
+    MatchStatusUpdate
+
 )
 from app.services.auth import get_password_hash, login_user, get_current_user
 
@@ -230,3 +234,127 @@ def get_swap_bid(bid_id: int, db: Session = Depends(get_db)):
             detail="Swap bid not found"
         )
     return bid
+
+@router.get("/matches", response_model =List[SwapMatchResponse])
+def get_my_matches(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all matches for current user
+    """
+    user_bid_ids = [bid.id for bid in current_user.bids]
+
+    matches = db.query(SwapMatch).fliter(
+        (SwapMatch.bid_a_id.in_(user_bid_ids)) |
+        (SwapMatch.bid_b_id.in_(user_bid_ids))
+    ).all()
+
+    return matches
+
+router.get("/matches/{match_id}", response_model = MatchDetailResponse)
+def get_match_details(
+        match_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailes match information including both users and homes
+    """
+    match = db.query(SwapMatch).filter(
+        SwapMatch.id == match_id).first()
+    if not match:
+        raise Exception(status_code =400, detail= "Match not found")
+    
+    #get the bids
+    bid_a = db.query(SwapMatch).filter(SwapBid.id == match.bid_a_id).first()
+    bid_b = db.query(SwapMatch).filter(SwapMatch.id == match.bid_b_id).first()
+
+    #determind which is the current user's bid
+    if bid_a.user_id == current_user.id:
+        my_bid = bid_a
+        other_bid = bid_b
+    elif bid_b.user_id == current_user.id:
+        my_bid = bid_b
+        other_bid = bid_a
+    else:
+        raise HTTPException(status_code = 403, detail = "Not authorized to view this match")
+    
+    #get users
+    other_user = db.query(User).filter(User.id == other_bid.user_id).first()
+
+    #get homes
+    my_home = db.query(Home).filter(
+        Home.owner_id == current_user.id,
+        Home.location == other_bid.desired_location
+    ).first()
+
+    other_home = db.query(Home).filter(
+        Home.owner_id == current_user.id,
+        Home.location ==my_bid.desired_location
+    ).first()
+
+
+    return MatchDetailResponse
+
+@router.put("/matches/{match_id}/accept")
+def accept_match(
+    match_id : int,
+    db :Session = Depends(get_db),
+    current_user : User = Depends(get_current_user)
+):
+    """
+    Accept a match proposal
+    """
+    match = db.query(SwapMatch).filter(SwapMatch.id == match_id).first()
+    if not match:
+        raise Exception(status_code = 404, body = "Match not found")
+    
+    #verify user is part of this match
+    bid_a = db.query(SwapBid).filter(SwapBid.bid_a == match.bid_a).first()
+    bid_b = db.query(SwapBid).filter(SwapBid.bid_b == match.bid_b).first()
+
+    if current_user.id not in[bid_a.user_id, bid_b.user_id]:
+        raise HTTPException(statuscode = 403, body ="Not authorized to change this match")
+  
+    
+    if match.status != "proposed":
+        raise HTTPException(statuscode= 400, body = "Match is not in a proposed state")
+    
+
+    #update match state
+    match.status = "accepted"
+    bid_a.status = "accepted"
+    bid_b.status = "accepted"
+
+    db.commit()
+    return {"message": "Match accepted successfully", "match_id":match_id}
+
+@router.put("/matches/{match_id}/reject")
+def reject_match(
+    match_id : int,
+    db : Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    match = db.query(SwapMatch).filter(SwapMatch.id == match_id).first()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    # Verify user is part of this match
+    bid_a = db.query(SwapBid).filter(SwapBid.id == match.bid_a_id).first()
+    bid_b = db.query(SwapBid).filter(SwapBid.id == match.bid_b_id).first()
+    
+    if current_user.id not in [bid_a.user_id, bid_b.user_id]:
+        raise HTTPException(status_code=403, detail="Not authorized to modify this match")
+    
+    if match.status != "proposed":
+        raise HTTPException(status_code=400, detail="Match is not in proposed state")
+    
+    # Update match status and reset bids to pending
+    match.status = "rejected"
+    bid_a.status = "pending"
+    bid_b.status = "pending"
+    
+    db.commit()
+    
+    return {"message": "Match rejected successfully", "match_id": match_id}
