@@ -22,7 +22,7 @@ pwdlib[argon2]
 
 # Web framework
 fastapi==0.111.0
-uvicorn[standard]==0.23.2
+uvicorn[standard]==0.40.0
 python-multipart>=0.0.7
 
 # Data handling
