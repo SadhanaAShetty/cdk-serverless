@@ -13,9 +13,10 @@ from app.schema import TokenData
 
 #JWT Configuration
 #dummy secret key for development purposes only
-SECRET_KEY = "kwbndiwdhojwmkjhbdguftygvbhjniuygvbhjnuhdgyvjniuhdjciuhgybkdnckjnchdnjcuhygvbhncyguv"
+# openssl rand -hex 32
+SECRET_KEY = "c6394155dgy5ac2e4232e3c9436cad19544a61be54shdcjkhsckhbsdcjsbhghufgduy18811b99657be6bb4c784e008"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 15  
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  
 
 # Password hashing
 password_hash = PasswordHash.recommended()

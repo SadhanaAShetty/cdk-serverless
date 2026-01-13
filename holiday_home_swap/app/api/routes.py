@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db import get_db
 from app.model import User, Home, SwapBid, SwapMatch
 from app.services.swap import create_swap_match
@@ -19,7 +19,6 @@ from app.schema import (
     SwapMatchResponse, 
     MatchDetailResponse, 
     MatchStatusUpdate
-
 )
 from app.services.auth import get_password_hash, login_user, get_current_user
 
@@ -30,7 +29,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     """
     Create a new user with hashed password
     """
-    # Check if user already exists
+    #Check if user already exists
     existing = db.query(User).filter(User.email == user.email).first()
     if existing:
         raise HTTPException(
@@ -38,10 +37,10 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
             detail="User with this email already exists"
         )
 
-    # Hash the password before storing
+    #Hash the password before storing
     hashed_password = get_password_hash(user.password)
     
-    # Create new user
+    #Create new user
     new_user = User(
         name=user.name,
         email=user.email,
@@ -124,8 +123,8 @@ def create_home(home: HomeCreate, db: Session = Depends(get_db), current_user: U
             status_code=400,
             detail="Available to date must be after available from date"
         )
-    
-    if home.available_from < datetime.now():
+
+    if home.available_from < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=400,
             detail="Available from date must be in the future"
@@ -181,7 +180,7 @@ def create_swap_bid(
             detail="End date must be after start date"
         )
     
-    if bid.start_date < datetime.now():
+    if bid.start_date < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=400,
             detail="Start date must be in the future"
