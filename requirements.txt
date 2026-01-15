@@ -35,7 +35,7 @@ pydantic-settings>=2.6.0
 
 # Plotting and PDF
 matplotlib==3.10.8
-reportlab==4.0.7
+reportlab==4.4.7
 
 # Testing
 pytest>=7.4.0
