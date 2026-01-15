@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
@@ -21,6 +21,8 @@ from app.schema import (
     MatchStatusUpdate
 )
 from app.services.auth import get_password_hash, login_user, get_current_user
+from app.services.storage import image_storage
+from app.config import settings
 
 router = APIRouter()
 
@@ -157,12 +159,89 @@ def create_home(home: HomeCreate, db: Session = Depends(get_db), current_user: U
 
     return new_home
 
+
+@router.post("/homes/{home_id}/photos")
+async def upload_home_photos(
+    home_id: int,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload photos for a home listing (stores S3 keys, not URLs)
+    """
+    # Get the home and verify ownership
+    home = db.query(Home).filter(Home.id == home_id).first()
+    if not home:
+        raise HTTPException(status_code=404, detail="Home not found")
+    
+    if home.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=403, 
+            detail="Not authorized to upload photos for this home"
+        )
+    
+    # Validate image count
+    current_photo_count = len(home.photos) if home.photos else 0
+    image_storage.validate_image_count(current_photo_count, len(files), home.room_count)
+    
+    # Upload each image and get S3 keys
+    uploaded_keys = []
+    for file in files:
+        try:
+            s3_key = image_storage.process_and_upload_image(file, current_user.id, home_id)
+            uploaded_keys.append(s3_key)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to upload {file.filename}: {str(e)}"
+            )
+    
+    # Store S3 keys in database
+    if home.photos:
+        home.photos.extend(uploaded_keys)
+    else:
+        home.photos = uploaded_keys
+    
+    db.commit()
+    db.refresh(home)
+    
+    return {
+        "message": f"Successfully uploaded {len(uploaded_keys)} photos",
+        "photo_count": len(home.photos),
+        "uploaded_keys": uploaded_keys
+    }
+
+
+@router.get("/homes/{home_id}", response_model=HomeResponse)
+def get_home(home_id: int, db: Session = Depends(get_db)):
+    """
+    Get specific home with presigned photo URLs
+    """
+    home = db.query(Home).filter(Home.id == home_id).first()
+    if not home:
+        raise HTTPException(status_code=404, detail="Home not found")
+    
+    # Generate presigned URLs for photos
+    if home.photos:
+        home.photos = image_storage.generate_presigned_urls(
+            home.photos, 
+            expiration=settings.PRESIGNED_URL_EXPIRATION
+        )
+    
+    return home
+
 @router.get("/listings", response_model=List[HomeResponse])
 def list_homes(db: Session = Depends(get_db)):
-    """
-    Get all home listings
-    """
-    return db.query(Home).all()
+    """Get all home listings with presigned photo URLs"""
+    homes = db.query(Home).all()
+    
+    # Generate presigned URLs for all homes
+    for home in homes:
+        if home.photos:
+            home.photos = image_storage.generate_presigned_urls(home.photos)
+    
+    return homes
 
 @router.post("/swap_bids", response_model=SwapBidResponse)
 def create_swap_bid(
