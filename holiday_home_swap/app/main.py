@@ -6,6 +6,7 @@ from app.config import settings
 from app.services.storage import image_storage
 from pathlib import Path
 import uvicorn
+import boto3
 
 app = FastAPI()
 
@@ -29,12 +30,19 @@ def startup_event():
     reports_folder = Path(settings.REPORTS_DIR)
     reports_folder.mkdir(parents=True, exist_ok=True)
     
-    # Initialize image storage service with config
+    #Initialize image storage service with config
     if settings.S3_BUCKET_NAME:
         image_storage.bucket_name = settings.S3_BUCKET_NAME
         image_storage.region = settings.AWS_REGION
-        import boto3
-        image_storage.s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
+        
+        
+        
+        if settings.AWS_PROFILE:
+            session = boto3.Session(profile_name=settings.AWS_PROFILE)
+            image_storage.s3_client = session.client('s3', region_name=settings.AWS_REGION)
+            print(f"Using AWS Profile: {settings.AWS_PROFILE}")
+        else:
+            image_storage.s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
     
     print("Server is running")
     print(f" Database: {settings.DATABASE_URL}")

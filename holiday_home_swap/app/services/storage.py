@@ -33,7 +33,7 @@ class ImageStorageService:
     def __init__(self, bucket_name: str = None, region: str = "eu-west-1"):
         self.bucket_name = bucket_name
         self.region = region
-        self.s3_client = boto3.client('s3', region_name=region) if bucket_name else None
+        self.s3_client = None  
     
     def get_image_limit(self, room_count: int) -> int:
         """Get maximum allowed images based on room count"""
@@ -60,7 +60,7 @@ class ImageStorageService:
         return True
     
     def validate_image_count(self, current_count: int, new_count: int, room_count: int) -> bool:
-        """Validate total image count doesn't exceed limit"""
+        """check if total image count doesn't exceed limit"""
         max_images = self.get_image_limit(room_count)
         if current_count + new_count > max_images:
             raise HTTPException(
@@ -183,5 +183,5 @@ class ImageStorageService:
         return s3_key_result 
 
 
-# Create global instance - will be initialized with config in main.py
+
 image_storage = ImageStorageService()
