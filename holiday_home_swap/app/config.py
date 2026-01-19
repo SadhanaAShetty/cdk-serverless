@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     PRESIGNED_URL_EXPIRATION: int = 3600 
     AWS_PROFILE: Optional[str] = None  
     
+    # JWT Authentication
+    JWT_SECRET_KEY: str = "fallback-secret-for-dev-only"  
+    
     class Config:
         env_file = "../.env" 
 

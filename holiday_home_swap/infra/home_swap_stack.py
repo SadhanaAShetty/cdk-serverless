@@ -28,8 +28,13 @@ class HomeSwapStack(Stack):
         
         #email verified and stored in ssm
         sender = ssm.StringParameter.from_string_parameter_name(
-            self, "SesReceiverIdentityParam",
+            self, "SesSenderIdentityParam",
             string_parameter_name="/ses/parameter/email/sender"
+        ).string_value
+
+        receiver = ssm.StringParameter.from_string_parameter_name(
+            self, "SesReceiverIdentityParam",
+            string_parameter_name="/ses/parameter/email/receiver"
         ).string_value
 
         

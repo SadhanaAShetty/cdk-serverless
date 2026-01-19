@@ -168,7 +168,7 @@ async def upload_home_photos(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload photos for a home listing (stores S3 keys, not URLs)
+    Upload photos for a home listing 
     """
     # Get the home and verify ownership
     home = db.query(Home).filter(Home.id == home_id).first()
@@ -313,6 +313,40 @@ def get_swap_bid(bid_id: int, db: Session = Depends(get_db)):
         )
     return bid
 
+
+@router.post("/debug/test-email")
+def test_email_notification(
+    user_email: str,
+    user_name: str = "Test User",
+    match_location: str = "Paris",
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Debug endpoint to test email notifications
+    """
+    print(f" Testing email notification to {user_email}")
+    
+    from app.services.notification import email_service
+    
+    try:
+        success = email_service.send_match_notification(user_email, user_name, match_location)
+        
+        return {
+            "success": success,
+            "message": "Email sent successfully" if success else "Email failed to send",
+            "sender_configured": bool(settings.SES_SENDER_EMAIL),
+            "recipient": user_email,
+            "aws_profile": settings.AWS_PROFILE
+        }
+    except Exception as e:
+        print(f"Exception in test email: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "sender_configured": bool(settings.SES_SENDER_EMAIL),
+            "aws_profile": settings.AWS_PROFILE
+        }
+
 @router.get("/matches", response_model =List[SwapMatchResponse])
 def get_my_matches(
     db: Session = Depends(get_db),
@@ -323,7 +357,7 @@ def get_my_matches(
     """
     user_bid_ids = [bid.id for bid in current_user.bids]
 
-    matches = db.query(SwapMatch).fliter(
+    matches = db.query(SwapMatch).filter(
         (SwapMatch.bid_a_id.in_(user_bid_ids)) |
         (SwapMatch.bid_b_id.in_(user_bid_ids))
     ).all()
@@ -342,7 +376,7 @@ def get_match_details(
     match = db.query(SwapMatch).filter(
         SwapMatch.id == match_id).first()
     if not match:
-        raise Exception(status_code =400, detail= "Match not found")
+        raise HTTPException(status_code=404, detail="Match not found")
     
     #get the bids
     bid_a = db.query(SwapMatch).filter(SwapBid.id == match.bid_a_id).first()
@@ -386,18 +420,17 @@ def accept_match(
     """
     match = db.query(SwapMatch).filter(SwapMatch.id == match_id).first()
     if not match:
-        raise Exception(status_code = 404, body = "Match not found")
+        raise HTTPException(status_code=404, detail="Match not found")
     
     #verify user is part of this match
-    bid_a = db.query(SwapBid).filter(SwapBid.bid_a == match.bid_a).first()
-    bid_b = db.query(SwapBid).filter(SwapBid.bid_b == match.bid_b).first()
+    bid_a = db.query(SwapBid).filter(SwapBid.id == match.bid_a_id).first()
+    bid_b = db.query(SwapBid).filter(SwapBid.id == match.bid_b_id).first()
 
-    if current_user.id not in[bid_a.user_id, bid_b.user_id]:
-        raise HTTPException(statuscode = 403, body ="Not authorized to change this match")
+    if current_user.id not in [bid_a.user_id, bid_b.user_id]:
+        raise HTTPException(status_code=403, detail="Not authorized to change this match")
   
-    
     if match.status != "proposed":
-        raise HTTPException(statuscode= 400, body = "Match is not in a proposed state")
+        raise HTTPException(status_code=400, detail="Match is not in a proposed state")
     
 
     #update match state

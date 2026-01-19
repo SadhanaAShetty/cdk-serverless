@@ -11,13 +11,13 @@ from botocore.exceptions import ClientError
 class ImageStorageService:
     """Service for handling home image uploads with presigned URLs"""
     
-    # Image limits based on room count
+    #bedroom count to image limit mapping
     IMAGE_LIMITS = {
-        1: 5,   # Studio/1BR: 5 images max
-        2: 6,   # 2BR: 6 images max  
-        3: 8,   # 3BR: 8 images max
-        4: 10,  # 4BR: 10 images max
-        5: 12,  # 5+BR: 12 images max
+        1: 5,   
+        2: 6,   
+        3: 8,   
+        4: 10,
+        5: 12,
     }
     
     # Allowed file types
@@ -74,25 +74,25 @@ class ImageStorageService:
         max_width = max_width or self.MAX_WIDTH
         max_height = max_height or self.MAX_HEIGHT
         
-        # Open image
+        #Open image
         image = Image.open(io.BytesIO(file_content))
         
-        # Convert to RGB if necessary
+        #Convert to RGB if necessary
         if image.mode in ("RGBA", "P"):
             image = image.convert("RGB")
         
-        # Resize if too large
+        #Resize if too large
         if image.width > max_width or image.height > max_height:
             image.thumbnail((max_width, max_height))
         
-        # Save optimized image
+        #Save optimized image
         output = io.BytesIO()
         image.save(output, format="JPEG", quality=85, optimize=True)
         return output.getvalue()
     
     def generate_s3_key(self, user_id: int, home_id: int, filename: str) -> str:
         """Generate organized S3 key for the image"""
-        # Create unique filename to avoid conflicts
+        #Create unique filename to avoid conflicts
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_id = str(uuid.uuid4())[:8]
         file_extension = filename.split('.')[-1].lower()

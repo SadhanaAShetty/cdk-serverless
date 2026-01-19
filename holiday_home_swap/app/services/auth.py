@@ -8,13 +8,11 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.model import User
 from app.schema import TokenData
-
+from app.config import settings
 
 
 #JWT Configuration
-#dummy secret key for development purposes only
-# openssl rand -hex 32
-SECRET_KEY = "c6394155dgy5ac2e4232e3c9436cad19544a61be54shdcjkhsckhbsdcjsbhghufgduy18811b99657be6bb4c784e008"
+SECRET_KEY = settings.JWT_SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30  
 
