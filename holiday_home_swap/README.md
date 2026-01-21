@@ -1,5 +1,5 @@
 # Holiday Home Swap API
-
+## CURRENTLY WORKING ON THIS PROJECT! IT IS NOT COMPLETED.
 A FastAPI-based platform for home exchange between travelers. Users can list their homes, create swap requests, and get matched with other homeowners for mutual exchanges.
 
 ## Features
@@ -19,7 +19,7 @@ A FastAPI-based platform for home exchange between travelers. Users can list the
 - **Backend**: FastAPI, Python 3.9+
 - **Database**: SQLite (SQLAlchemy ORM)
 - **Authentication**: JWT tokens
-- **Cloud**: AWS (S3, SES, SNS)
+- **Cloud**: AWS (S3, SES)
 - **Infrastructure**: AWS CDK
 - **Containerization**: Docker
 
@@ -41,7 +41,6 @@ A FastAPI-based platform for home exchange between travelers. Users can list the
 
 ## AWS Setup
 - S3 bucket for home images
-- SNS topic for notifications
 - SES for email alert
 - SSM parameters for configuration
 

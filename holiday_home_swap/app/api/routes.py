@@ -1,23 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime, timezone
 from app.db import get_db
-from app.model import User, Home, SwapBid
+from app.model import User, Home, SwapBid, SwapMatch
 from app.services.swap import create_swap_match
 from app.schema import (
     UserCreate,
     UserLogin,
     UserResponse,
     UserPreferences,
-    NotificationSettings,
     HomeCreate,
     HomeResponse,
-    HouseRules,
     SwapBidCreate,
     SwapBidResponse,
-    Token
+    Token,
+    SwapMatchResponse, 
+    MatchDetailResponse, 
+    MatchStatusUpdate
 )
 from app.services.auth import get_password_hash, login_user, get_current_user
+from app.services.storage import image_storage
+from app.config import settings
 
 router = APIRouter()
 
@@ -26,7 +31,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     """
     Create a new user with hashed password
     """
-    # Check if user already exists
+    #Check if user already exists
     existing = db.query(User).filter(User.email == user.email).first()
     if existing:
         raise HTTPException(
@@ -34,10 +39,10 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
             detail="User with this email already exists"
         )
 
-    # Hash the password before storing
+    #Hash the password before storing
     hashed_password = get_password_hash(user.password)
     
-    # Create new user
+    #Create new user
     new_user = User(
         name=user.name,
         email=user.email,
@@ -60,10 +65,18 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
     return login_user(db, user_login.email, user_login.password)
 
 
+@router.post("/auth/token", response_model=Token)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """
+    Login user and return JWT token
+    """
+    return login_user(db, form_data.username, form_data.password)
+
+
 @router.get("/auth/me", response_model=UserResponse)
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
-    Get current user information (protected route)
+    Get current user information 
     """
     return current_user
 
@@ -106,6 +119,19 @@ def create_home(home: HomeCreate, db: Session = Depends(get_db), current_user: U
     """
     Create new home listing with enhanced details (protected route)
     """
+    # Validate dates
+    if home.available_from >= home.available_to:
+        raise HTTPException(
+            status_code=400,
+            detail="Available to date must be after available from date"
+        )
+
+    if home.available_from < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=400,
+            detail="Available from date must be in the future"
+        )
+    
     # Convert house_rules to dict if provided
     house_rules_dict = home.house_rules.dict() if home.house_rules else None
     
@@ -133,12 +159,89 @@ def create_home(home: HomeCreate, db: Session = Depends(get_db), current_user: U
 
     return new_home
 
+
+@router.post("/homes/{home_id}/photos")
+async def upload_home_photos(
+    home_id: int,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload photos for a home listing 
+    """
+    # Get the home and verify ownership
+    home = db.query(Home).filter(Home.id == home_id).first()
+    if not home:
+        raise HTTPException(status_code=404, detail="Home not found")
+    
+    if home.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=403, 
+            detail="Not authorized to upload photos for this home"
+        )
+    
+    # Validate image count
+    current_photo_count = len(home.photos) if home.photos else 0
+    image_storage.validate_image_count(current_photo_count, len(files), home.room_count)
+    
+    # Upload each image and get S3 keys
+    uploaded_keys = []
+    for file in files:
+        try:
+            s3_key = image_storage.process_and_upload_image(file, current_user.id, home_id)
+            uploaded_keys.append(s3_key)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to upload {file.filename}: {str(e)}"
+            )
+    
+    # Store S3 keys in database
+    if home.photos:
+        home.photos.extend(uploaded_keys)
+    else:
+        home.photos = uploaded_keys
+    
+    db.commit()
+    db.refresh(home)
+    
+    return {
+        "message": f"Successfully uploaded {len(uploaded_keys)} photos",
+        "photo_count": len(home.photos),
+        "uploaded_keys": uploaded_keys
+    }
+
+
+@router.get("/homes/{home_id}", response_model=HomeResponse)
+def get_home(home_id: int, db: Session = Depends(get_db)):
+    """
+    Get specific home with presigned photo URLs
+    """
+    home = db.query(Home).filter(Home.id == home_id).first()
+    if not home:
+        raise HTTPException(status_code=404, detail="Home not found")
+    
+    # Generate presigned URLs for photos
+    if home.photos:
+        home.photos = image_storage.generate_presigned_urls(
+            home.photos, 
+            expiration=settings.PRESIGNED_URL_EXPIRATION
+        )
+    
+    return home
+
 @router.get("/listings", response_model=List[HomeResponse])
 def list_homes(db: Session = Depends(get_db)):
-    """
-    Get all home listings
-    """
-    return db.query(Home).all()
+    """Get all home listings with presigned photo URLs"""
+    homes = db.query(Home).all()
+    
+    # Generate presigned URLs for all homes
+    for home in homes:
+        if home.photos:
+            home.photos = image_storage.generate_presigned_urls(home.photos)
+    
+    return homes
 
 @router.post("/swap_bids", response_model=SwapBidResponse)
 def create_swap_bid(
@@ -149,6 +252,27 @@ def create_swap_bid(
     """
     Create a new swap bid 
     """
+    # Validate dates
+    if bid.start_date >= bid.end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="End date must be after start date"
+        )
+    
+    if bid.start_date < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=400,
+            detail="Start date must be in the future"
+        )
+    
+    # Check if user has at least one home to swap
+    user_homes = db.query(Home).filter(Home.owner_id == current_user.id).all()
+    if not user_homes:
+        raise HTTPException(
+            status_code=400,
+            detail="You must have at least one home listed to create a swap bid"
+        )
+    
     new_bid = SwapBid(
         user_id=current_user.id,  
         desired_location=bid.desired_location,
@@ -188,3 +312,160 @@ def get_swap_bid(bid_id: int, db: Session = Depends(get_db)):
             detail="Swap bid not found"
         )
     return bid
+
+
+@router.post("/debug/test-email")
+def test_email_notification(
+    user_email: str,
+    user_name: str = "Test User",
+    match_location: str = "Paris",
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Debug endpoint to test email notifications
+    """
+    print(f" Testing email notification to {user_email}")
+    
+    from app.services.notification import email_service
+    
+    try:
+        success = email_service.send_match_notification(user_email, user_name, match_location)
+        
+        return {
+            "success": success,
+            "message": "Email sent successfully" if success else "Email failed to send",
+            "sender_configured": bool(settings.SES_SENDER_EMAIL),
+            "recipient": user_email,
+            "aws_profile": settings.AWS_PROFILE
+        }
+    except Exception as e:
+        print(f"Exception in test email: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "sender_configured": bool(settings.SES_SENDER_EMAIL),
+            "aws_profile": settings.AWS_PROFILE
+        }
+
+@router.get("/matches", response_model =List[SwapMatchResponse])
+def get_my_matches(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all matches for current user
+    """
+    user_bid_ids = [bid.id for bid in current_user.bids]
+
+    matches = db.query(SwapMatch).filter(
+        (SwapMatch.bid_a_id.in_(user_bid_ids)) |
+        (SwapMatch.bid_b_id.in_(user_bid_ids))
+    ).all()
+
+    return matches
+
+router.get("/matches/{match_id}", response_model = MatchDetailResponse)
+def get_match_details(
+        match_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailes match information including both users and homes
+    """
+    match = db.query(SwapMatch).filter(
+        SwapMatch.id == match_id).first()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    #get the bids
+    bid_a = db.query(SwapMatch).filter(SwapBid.id == match.bid_a_id).first()
+    bid_b = db.query(SwapMatch).filter(SwapMatch.id == match.bid_b_id).first()
+
+    #determind which is the current user's bid
+    if bid_a.user_id == current_user.id:
+        my_bid = bid_a
+        other_bid = bid_b
+    elif bid_b.user_id == current_user.id:
+        my_bid = bid_b
+        other_bid = bid_a
+    else:
+        raise HTTPException(status_code = 403, detail = "Not authorized to view this match")
+    
+    #get users
+    other_user = db.query(User).filter(User.id == other_bid.user_id).first()
+
+    #get homes
+    my_home = db.query(Home).filter(
+        Home.owner_id == current_user.id,
+        Home.location == other_bid.desired_location
+    ).first()
+
+    other_home = db.query(Home).filter(
+        Home.owner_id == current_user.id,
+        Home.location ==my_bid.desired_location
+    ).first()
+
+
+    return MatchDetailResponse
+
+@router.put("/matches/{match_id}/accept")
+def accept_match(
+    match_id : int,
+    db :Session = Depends(get_db),
+    current_user : User = Depends(get_current_user)
+):
+    """
+    Accept a match proposal
+    """
+    match = db.query(SwapMatch).filter(SwapMatch.id == match_id).first()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    #verify user is part of this match
+    bid_a = db.query(SwapBid).filter(SwapBid.id == match.bid_a_id).first()
+    bid_b = db.query(SwapBid).filter(SwapBid.id == match.bid_b_id).first()
+
+    if current_user.id not in [bid_a.user_id, bid_b.user_id]:
+        raise HTTPException(status_code=403, detail="Not authorized to change this match")
+  
+    if match.status != "proposed":
+        raise HTTPException(status_code=400, detail="Match is not in a proposed state")
+    
+
+    #update match state
+    match.status = "accepted"
+    bid_a.status = "accepted"
+    bid_b.status = "accepted"
+
+    db.commit()
+    return {"message": "Match accepted successfully", "match_id":match_id}
+
+@router.put("/matches/{match_id}/reject")
+def reject_match(
+    match_id : int,
+    db : Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    match = db.query(SwapMatch).filter(SwapMatch.id == match_id).first()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    # Verify user is part of this match
+    bid_a = db.query(SwapBid).filter(SwapBid.id == match.bid_a_id).first()
+    bid_b = db.query(SwapBid).filter(SwapBid.id == match.bid_b_id).first()
+    
+    if current_user.id not in [bid_a.user_id, bid_b.user_id]:
+        raise HTTPException(status_code=403, detail="Not authorized to modify this match")
+    
+    if match.status != "proposed":
+        raise HTTPException(status_code=400, detail="Match is not in proposed state")
+    
+    # Update match status and reset bids to pending
+    match.status = "rejected"
+    bid_a.status = "pending"
+    bid_b.status = "pending"
+    
+    db.commit()
+    
+    return {"message": "Match rejected successfully", "match_id": match_id}

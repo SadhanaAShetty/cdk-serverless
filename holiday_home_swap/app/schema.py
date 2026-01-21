@@ -127,3 +127,27 @@ class TokenData(BaseModel):
 
 class UserInDB(BaseModel):
     hashed_password: str
+
+class SwapMatchResponse(BaseModel):
+    id: int
+    bid_a_id: int
+    bid_b_id: int
+    status: str
+    match_date: datetime
+    class Config:
+        from_attributes = True
+
+class MatchDetailResponse(BaseModel):
+    id: int
+    status: str
+    match_date: datetime
+    my_bid: SwapBidResponse
+    other_bid: SwapBidResponse
+    my_home: HomeResponse
+    other_home: HomeResponse
+    other_user: UserResponse
+    class Config:
+        from_attributes = True
+
+class MatchStatusUpdate(BaseModel):
+    status: str  # accepted, rejected

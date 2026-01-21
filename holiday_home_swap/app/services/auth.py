@@ -8,20 +8,19 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.model import User
 from app.schema import TokenData
-
+from app.config import settings
 
 
 #JWT Configuration
-#dummy secret key for development purposes only
-SECRET_KEY = "kwbndiwdhojwmkjhbdguftygvbhjniuygvbhjnuhdgyvjniuhdjciuhgybkdnckjnchdnjcuhygvbhncyguv"
+SECRET_KEY = settings.JWT_SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 15  
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  
 
 # Password hashing
 password_hash = PasswordHash.recommended()
 
 # OAuth2 scheme for token authentication
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

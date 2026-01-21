@@ -3,8 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.db import init_db
 from app.config import settings
+from app.services.storage import image_storage
+from app.services.notification import email_service
 from pathlib import Path
 import uvicorn
+import boto3
 
 app = FastAPI()
 
@@ -23,13 +26,37 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
-    """Setup database"""
+    """Setup database and services"""
     init_db()
     reports_folder = Path(settings.REPORTS_DIR)
     reports_folder.mkdir(parents=True, exist_ok=True)
-    print("Server is running")
+    
+    print("INITIALIZING AWS SERVICES ")
+    
+    # Initialize image storage service with config
+    if settings.S3_BUCKET_NAME:
+        image_storage.bucket_name = settings.S3_BUCKET_NAME
+        image_storage.region = settings.AWS_REGION
+        
+        if settings.AWS_PROFILE:
+            session = boto3.Session(profile_name=settings.AWS_PROFILE)
+            image_storage.s3_client = session.client('s3', region_name=settings.AWS_REGION)
+            print(f"S3 initialized with profile: {settings.AWS_PROFILE}")
+        else:
+            image_storage.s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
+            print("S3 initialized with default credentials")
+    
+    #Initialize email service with same profile
+    email_service.initialize(profile_name=settings.AWS_PROFILE)
+    
+    print("SERVER STARTUP COMPLETE")
     print(f" Database: {settings.DATABASE_URL}")
     print(f" Reports directory: {settings.REPORTS_DIR}")
+    if settings.S3_BUCKET_NAME:
+        print(f" S3 Bucket: {settings.S3_BUCKET_NAME}")
+    print(f" AWS Region: {settings.AWS_REGION}")
+    print(f" AWS Profile: {settings.AWS_PROFILE}")
+    print(f" SES Sender: {settings.SES_SENDER_EMAIL}")
 
 
 @app.get("/")
