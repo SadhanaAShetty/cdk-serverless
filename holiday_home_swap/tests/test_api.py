@@ -1,14 +1,15 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-from holiday_home_swap.api import create_app
+from app.main import app
 from holiday_home_swap.app.db import get_db
+
 
 
 @pytest.fixture
 def app():
-    return create_app()
+    return app()
 
 
 @pytest.fixture
@@ -20,6 +21,8 @@ def client(app):
 def fake_db():
     db = Mock()
     return db
+
+
 
 
 @pytest.fixture
@@ -37,6 +40,7 @@ fake_user = {
     "email": "example@example.com",
     "password": "password123"
 }
+
 
 def test_create_user_success(client, fake_db, override_db):
     fake_db.query.return_value.filter.return_value.first.return_value = None
@@ -70,3 +74,29 @@ def test_user_already_exists(client, fake_db, override_db):
     fake_db.commit.assert_not_called()
     fake_db.refresh.assert_not_called()
 
+
+
+@pytest.mark.parametrize(
+    "bad_user, missing_field",
+    [
+        ({"name": "Test User", "email": "example@example.com"}, "password"),
+        ({"name": "Test User", "password": "password123"}, "email"),
+        ({"email": "example@example.com", "password": "password123"}, "name"),
+    ]
+)
+def test_create_user_missing_fields(client, fake_db, override_db, bad_user, missing_field):
+    response = client.post("/api/v1/users/", json=bad_user)
+
+    
+    assert response.status_code == 422
+
+    errors = response.json()["detail"]
+
+    
+    assert any(err["loc"][-1] == missing_field for err in errors)
+
+    
+    fake_db.query.assert_not_called()
+    fake_db.add.assert_not_called()
+    fake_db.commit.assert_not_called()
+    fake_db.refresh.assert_not_called()
