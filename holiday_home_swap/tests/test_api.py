@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch
+from fastapi import HTTPException
 
 from app.main import app
 from app.db import get_db
@@ -36,6 +37,17 @@ fake_user = {
     "email": "example@example.com",
     "password": "password123"
 }
+
+fake_login_data = {
+    "email": "test@example.com",
+    "password": "password123"
+}
+
+fake_token_response = {
+    "access_token": "fake_jwt_token_12345",
+    "token_type": "bearer"
+}
+
 
 
 @patch('app.api.routes.User')
@@ -178,4 +190,47 @@ def test_invalid_password_format(client, fake_db, override_db, invalid_password,
 
 
 
+@patch('app.api.routes.login_user')
+def test_login_user_success(mock_login_user, client, fake_db, override_db):
+    mock_login_user.return_value = {
+        "access_token": "fake_jwt_token_12345", 
+        "token_type": "bearer"
+    }
+    login_data = {"email": "test@example.com", "password": "password123"}
 
+    response = client.post("/api/v1/auth/login", json=login_data)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["access_token"] == "fake_jwt_token_12345"
+    assert body["token_type"] == "bearer"
+
+    mock_login_user.assert_called_once_with(fake_db, "test@example.com", "password123")
+
+
+@patch('app.api.routes.login_user')
+def test_login_user_invalid_credentials(mock_login_user, client, fake_db, override_db):
+    mock_login_user.side_effect = HTTPException(status_code=401, detail="Invalid email or password")
+    login_data = {"email": "test@example.com", "password": "wrongpassword"}
+
+    response = client.post("/api/v1/auth/login", json=login_data)
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid email or password"
+    mock_login_user.assert_called_once_with(fake_db, "test@example.com", "wrongpassword")
+
+@pytest.mark.parametrize(
+    "login_data, missing_field",
+    [
+        ({"email": "test@example.com"}, "password"),
+        ({"password": "password123"}, "email"),
+        ({}, "email"),  
+    ]
+)
+def test_login_user_missing_fields(client, login_data, fake_db, missing_field, override_db):
+    response = client.post("/api/v1/auth/login", json=login_data)
+
+    assert response.status_code == 422
+
+    errors = response.json()["detail"]
+    assert any(err["loc"][-1] == missing_field for err in errors)
