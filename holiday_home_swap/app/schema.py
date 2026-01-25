@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from typing import List, Optional
 
@@ -6,7 +6,7 @@ from typing import List, Optional
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
-    password: str  
+    password: str = Field(min_length=8, max_length=16)
 
 
 class UserLogin(BaseModel):
@@ -116,6 +116,7 @@ class SwapMatchResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -127,15 +128,6 @@ class TokenData(BaseModel):
 
 class UserInDB(BaseModel):
     hashed_password: str
-
-class SwapMatchResponse(BaseModel):
-    id: int
-    bid_a_id: int
-    bid_b_id: int
-    status: str
-    match_date: datetime
-    class Config:
-        from_attributes = True
 
 class MatchDetailResponse(BaseModel):
     id: int

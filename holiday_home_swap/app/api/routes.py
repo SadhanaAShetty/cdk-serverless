@@ -17,8 +17,7 @@ from app.schema import (
     SwapBidResponse,
     Token,
     SwapMatchResponse, 
-    MatchDetailResponse, 
-    MatchStatusUpdate
+    MatchDetailResponse
 )
 from app.services.auth import get_password_hash, login_user, get_current_user
 from app.services.storage import image_storage
@@ -364,25 +363,24 @@ def get_my_matches(
 
     return matches
 
-router.get("/matches/{match_id}", response_model = MatchDetailResponse)
+@router.get("/matches/{match_id}", response_model=MatchDetailResponse)
 def get_match_details(
-        match_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+    match_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Get detailes match information including both users and homes
+    Get detailed match information including both users and homes
     """
-    match = db.query(SwapMatch).filter(
-        SwapMatch.id == match_id).first()
+    match = db.query(SwapMatch).filter(SwapMatch.id == match_id).first()
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
     
-    #get the bids
-    bid_a = db.query(SwapMatch).filter(SwapBid.id == match.bid_a_id).first()
-    bid_b = db.query(SwapMatch).filter(SwapMatch.id == match.bid_b_id).first()
+    # Get the bids
+    bid_a = db.query(SwapBid).filter(SwapBid.id == match.bid_a_id).first()
+    bid_b = db.query(SwapBid).filter(SwapBid.id == match.bid_b_id).first()
 
-    #determind which is the current user's bid
+    # Determine which is the current user's bid
     if bid_a.user_id == current_user.id:
         my_bid = bid_a
         other_bid = bid_b
@@ -390,24 +388,39 @@ def get_match_details(
         my_bid = bid_b
         other_bid = bid_a
     else:
-        raise HTTPException(status_code = 403, detail = "Not authorized to view this match")
+        raise HTTPException(status_code=403, detail="Not authorized to view this match")
     
-    #get users
+    # Get other user
     other_user = db.query(User).filter(User.id == other_bid.user_id).first()
 
-    #get homes
+    # Get homes fix the logic to get correct homes
     my_home = db.query(Home).filter(
         Home.owner_id == current_user.id,
-        Home.location == other_bid.desired_location
+        Home.location.ilike(other_bid.desired_location)
     ).first()
 
     other_home = db.query(Home).filter(
-        Home.owner_id == current_user.id,
-        Home.location ==my_bid.desired_location
+        Home.owner_id == other_user.id,
+        Home.location.ilike(my_bid.desired_location)
     ).first()
 
+    # Generate presigned URLs for photos
+    if my_home and my_home.photos:
+        my_home.photos = image_storage.generate_presigned_urls(my_home.photos)
+    
+    if other_home and other_home.photos:
+        other_home.photos = image_storage.generate_presigned_urls(other_home.photos)
 
-    return MatchDetailResponse
+    return MatchDetailResponse(
+        id=match.id,
+        status=match.status,
+        match_date=match.match_date,
+        my_bid=my_bid,
+        other_bid=other_bid,
+        my_home=my_home,
+        other_home=other_home,
+        other_user=other_user
+    )
 
 @router.put("/matches/{match_id}/accept")
 def accept_match(
