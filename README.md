@@ -1,382 +1,238 @@
-# cdk-serverless
-# CDK Serverless Projects
+# AWS CDK Serverless Projects
 
-A collection of AWS serverless applications built with AWS CDK (Cloud Development Kit) in Python. This repository demonstrates various serverless architectures, patterns, and AWS services integration.
+This is my collection of AWS serverless projects built while learning CDK. I started this repository to understand how AWS services work together. 
 
-## 🏗️ Repository Structure
+## Repository Contents
+
+The repository contains multiple projects with varying complexity levels. Here is what I have built:
 
 ```
 cdk-serverless/
 ├── constructs/          # Reusable CDK constructs
-├── food_delivery/       # Food delivery platform
-├── blogpost_genAI/      # AI blog generator with Bedrock
-├── order_processing/    # Order processing system
-├── loan_processing/     # Loan processing workflows
-├── image_processing/    # Image processing pipeline
-├── notify_my_turn/      # Notification service
-└── quicksight_visuals/  # QuickSight dashboards
+├── food_delivery/       # Food delivery application
+├── blogpost_genAI/      # AI blog generation service
+├── order_processing/    # Order management system
+├── loan_processing/     # Loan application processing
+├── image_processing/    # Image processing pipeline  
+├── notify_my_turn/      # Appointment notification system
+├── quicksight_visuals/  # Data visualization dashboards
+├── cloud_cost_tracker/  # AWS cost monitoring and alerting
+├── holiday_home_swap/   # Home exchange platform
 ```
 
-## 📦 Projects
+## Projects
 
-### 🍕 Food Delivery Platform
-**Path:** `food_delivery/`
+### Food Delivery Application (food_delivery/)
 
-A comprehensive serverless food delivery backend with multiple microservices.
+This project expanded beyond the initial scope. It started as a simple order creation API and now includes five separate stacks.I tried to build something similar to Thuisbezorgd/uber eats
 
-**Features:**
-- Order management (create, edit, cancel, fetch)
-- User profile & address management
-- Favorite restaurants with SQS processing
-- Real-time rider location tracking (Kinesis)
-- EventBridge-driven order updates
-- Cognito authentication with role-based access
-- CloudWatch monitoring & SNS alerts
+The application handles:
+- Order creation, editing, and cancellation
+- User profile and address management
+- Favorite restaurant processing with SQS
+- Real-time rider location tracking using Kinesis
+- Order status updates through EventBridge
+- User authentication with Cognito role-based access
 
-**Tech Stack:** API Gateway, Lambda, DynamoDB, Kinesis, SQS, EventBridge, Cognito
-
-**Stacks:** 5 (Main, User Profile, Favorites, Order Updates, Data Stream)
-
-[📖 Full Documentation](food_delivery/README.md)
-
----
-
-### 🤖 AI Blog Generator
-**Path:** `blogpost_genAI/`
-
-Generate blog posts using AWS Bedrock's llm model via REST API.
-
-**Features:**
-- AI-powered content generation (200-word blogs)
-- Automatic S3 storage with timestamps
-- API key authentication (optional)
-- Cost tracking & token usage logging
-- LLM integration
-
-**Tech Stack:** API Gateway, Lambda, Bedrock, S3
-
-**Performance:** ~1-2 seconds per blog generation
+Stack count: 5
+Technologies: API Gateway, Lambda, DynamoDB, Kinesis, SQS, EventBridge, Cognito
 
 
 
+### AI Blog Generator (blogpost_genAI/)
 
----
+This project uses AWS Bedrock to generate blog content. The system accepts a topic and produces a 200-word blog post stored in S3.
 
-### 📦 Order Processing
-**Path:** `order_processing/`
+The service includes:
+- Content generation using Bedrock's Claude model
+- Automatic S3 storage with timestamp organization
+- Optional API key authentication
+- Cost and token usage tracking
 
-Serverless backend order processing system.
+Technologies: API Gateway, Lambda, Bedrock, S3
 
-**Features:**
-- Order workflow management
-- RESTful API endpoints
-- Order state management
-- Event-driven architecture
+Note: Bedrock usage costs require monitoring.
 
-**Tech Stack:** API Gateway, Lambda, DynamoDB
+### Order Processing (order_processing/)
 
----
+This is an early project implementing basic CRUD operations for order management. The system provides standard REST endpoints for order workflow management.
 
-### 💰 Loan Processing
-**Path:** `loan_processing/`, `loan_processor2/`, `loan_processor3/`
+### Loan Processing (loan_processing/, loan_processor2/, loan_processor3/)
 
-Loan application processing workflows with multiple iterations.
+Three iterations of loan application processing systems. Each version improved upon the previous implementation.
 
-**Features:**
-- Loan application management
-- Approval workflows
-- Document processing
+The systems handle:
+- Loan application submission
+- Approval workflow processing
+- Document management
 
-**Tech Stack:** Lambda, DynamoDB, Step Functions
+### Image Processing (image_processing/)
 
----
+An S3-triggered image processing pipeline. The system automatically resizes uploaded images using Lambda functions triggered by S3 events.
 
-### 🖼️ Image Processing
-**Path:** `image_processing/`
+### Appointment Notification System (notify_my_turn/)
 
-Serverless image processing pipeline.
+This system monitors appointment availability and sends notifications. It uses EventBridge Scheduler to check for available appointment slots.
 
-**Features:**
-- Image upload & transformation
-- Automated processing triggers
-- S3 event-driven architecture
+The system includes:
+- Scheduled appointment availability checking
+- Duplicate notification prevention
+- Multiple notification timing options
+- Both SNS and SES notification methods
 
-**Tech Stack:** Lambda, S3, CloudFront
+### Data Visualization (quicksight_visuals/)
 
----
+A complete data pipeline from S3 storage to QuickSight dashboard visualization.
 
-### 🔔 Notify My Turn
-**Path:** `notify_my_turn/`
+Technologies: QuickSight, Glue Crawler, Athena, S3
 
-Automated appointment notification system with EventBridge Scheduler.
+The Glue Crawler handles automatic schema discovery for the data catalog.
 
-**Features:**
-- EventBridge Scheduler for appointment checks
-- Overlap detection & prevention
-- Dual-time alert notifications (2 scheduled times)
-- Appointment availability monitoring
-- SNS/SES notifications
+### AWS Cost Monitoring (cloud_cost_tracker/)
 
-**Tech Stack:** EventBridge Scheduler, Lambda, SNS, SES, DynamoDB
+A serverless cost monitoring system that tracks daily AWS spending and detects cost anomalies. The system runs daily via EventBridge and sends alerts when spending exceeds normal patterns.
 
----
+The system includes:
+- Daily cost retrieval using AWS Cost Explorer API
+- Cost anomaly detection algorithm
+- CloudWatch metrics publishing for DailyCost and CostAnomaly
+- SNS email alerts for unusual spending patterns
+- CloudWatch dashboard with cost visualization
+- Manual testing capability with simulated cost data
 
-### 📊 QuickSight Visuals
-**Path:** `quicksight_visuals/`
+Technologies: Lambda, EventBridge, SNS, CloudWatch, Cost Explorer API
 
-AWS QuickSight dashboard with automated data pipeline.
+The system uses AWS Lambda Powertools for metrics and observability.
 
-**Features:**
-- Business intelligence dashboards
-- Glue Crawler for schema discovery
-- Athena for SQL queries
-- S3 data lake storage
-- Automated data cataloging
+### Holiday Home Exchange Platform (holiday_home_swap/)
 
-**Tech Stack:** QuickSight, Glue Crawler, Athena, S3
+A FastAPI-based platform for home exchange between travelers. Users can list homes, create swap requests, and receive automatic matches with other homeowners.
 
----
+The platform handles:
+- User registration and JWT authentication
+- Home listing creation with photo uploads
+- Swap bid submission for specific locations and dates
+- Automatic matching algorithm based on location and date compatibility
+- Email notifications for successful matches
+- Image storage and optimization via S3
+- User preference management
 
-## 🔧 Reusable Constructs
+Technologies: FastAPI, SQLite, SQLAlchemy, JWT, AWS S3, AWS SES, AWS CDK
 
-**Path:** `constructs/`
+Note: This project is currently in development.
 
-Custom CDK constructs for code reusability across projects.
 
-### Available Constructs:
+## Reusable Constructs (constructs/)
 
-#### `LambdaConstruct`
-Simplified Lambda function creation with built-in best practices.
+After repeating Lambda function configurations multiple times, I created reusable constructs to reduce code duplication.
 
-**Features:**
+### LambdaConstruct
+Standard Lambda function setup with common configurations:
 - Python 3.13 runtime
-- AWS Powertools layer included
-- Automatic DLQ creation
-- CDK-nag suppressions
-- Default timeout & memory settings
+- AWS Powertools layer integration
+- Dead letter queue configuration
+- Standard timeout and memory allocation
 
-**Usage:**
 ```python
-from constructs.lmbda_construct import LambdaConstruct
-
 lambda_fn = LambdaConstruct(
     self, "MyFunction",
-    function_name="my_function",
+    function_name="my_function", 
     handler="index.handler",
     code_path="lambda/",
     env={"KEY": "value"}
 )
 ```
 
-#### `DynamoTable`
-Reusable DynamoDB TableV2 construct with sensible defaults.
+### DynamoTable
+DynamoDB table configuration with on-demand billing and standard access patterns.
 
-**Features:**
-- On-demand billing
-- Automatic grant methods
-- Simplified key configuration
+### ApiGatewayConstruct
+API Gateway setup with CloudWatch logging and request throttling enabled by default.
 
-**Usage:**
-```python
-from constructs.ddb import DynamoTable
+## Setup Instructions
 
-table = DynamoTable(
-    self, "MyTable",
-    table_name="MyTable",
-    partition_key="id",
-    sort_key="timestamp"
-)
-```
+Requirements:
+- Python 3.9 or higher
+- AWS CLI with configured credentials
+- CDK CLI installation (npm install -g aws-cdk)
 
-#### `ApiGatewayConstruct`
-API Gateway with logging, throttling, and CDK-nag suppressions.
-
-**Features:**
-- CloudWatch logging enabled
-- Throttling configured
-- Common suppressions applied
-- Helper methods for auth
-
-**Usage:**
-```python
-from constructs.api_gateway_construct import ApiGatewayConstruct
-
-api = ApiGatewayConstruct(
-    self, "MyApi",
-    api_name="MyAPI",
-    throttling_rate_limit=1000
-)
-```
-
-#### `S3BucketConstruct`
-S3 bucket with security best practices.
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Python 3.9+
-- AWS CLI configured
-- AWS CDK CLI installed
-
-
-### Installation
-
+Installation process:
 ```bash
-# Clone the repository
-git clone <your-repo-url>
+git clone <repository-url>
 cd cdk-serverless
 
-# Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# Install dependencies
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 
-# Bootstrap CDK (first time only)
 cdk bootstrap
 ```
 
-### Deployment
-
+Deployment commands:
 ```bash
-# List all stacks
 cdk list
-
-# Deploy a specific stack
 cdk deploy FoodDeliveryStack
-
-# Deploy all stacks
 cdk deploy --all
-
-# Destroy a stack
 cdk destroy FoodDeliveryStack
 ```
 
-### Environment Variables
-
-Create a `.env` file in the root directory:
-
+Environment configuration:
+Create a .env file with:
 ```bash
-AWS_ACCOUNT_ID=your-account-id
-AWS_REGION=eu-west-1
+AWS_ACCOUNT_ID=your-account-number
+AWS_REGION=your-region
 ```
 
----
+## Testing
 
-## 🧪 Testing
+Testing is implemented for select projects using pytest. Currently, tests exist for the food delivery and holiday home swap projects.
 
-```bash
-# Run all tests
-pytest
-
-# Run specific project tests
-pytest food_delivery/tests/
-
-# Run with coverage
-pytest --cov=food_delivery
-```
-
----
-
-## 📋 CDK-Nag Compliance
-
-Latest few projects use CDK-nag for security and best practices validation.
-
-**Approach:**
-- Fix critical security issues
-- Suppress warnings with justification for dev/learning projects
-- Common suppressions in reusable constructs
-
----
-
-## 🏛️ Architecture Patterns
-
-### Event-Driven Architecture
-- EventBridge for order updates
-- Kinesis for real-time data streaming
-- SQS for async processing
-
-### Microservices
-- Separate stacks for different domains
-- Independent deployment
-- Shared constructs for consistency
-
-### Performance Optimization
-- Parallel DynamoDB queries
-- Connection pooling
-- Minimal Lambda cold starts
-- Optimized memory allocation
+Testing framework:
+- pytest for test execution
+- unittest.mock for dependency mocking
+- FastAPI TestClient for API testing
 
 
----
+## Security Compliance
 
-## 🛠️ Tech Stack
+Recent projects use CDK-nag for security validation. The tool enforces AWS security best practices. For learning projects, some warnings are suppressed with documented justifications.
 
-**Core Services:**
+## Technical Observations
+
+Architecture patterns used:
+- Event-driven processing with EventBridge and SQS
+- Microservice separation through independent stacks
+- Serverless-first approach with Lambda functions
+
+
+
+Effective patterns:
+- Lambda with API Gateway for HTTP APIs
+- DynamoDB for most database requirements
+- S3 for file storage and static content
+- EventBridge for service decoupling
+- AWS Lambda Powertools for observability
+
+## Technology Stack
+
+Core services:
 - AWS Lambda (Python 3.13)
-- API Gateway (REST)
-- DynamoDB (TableV2)
+- API Gateway
+- DynamoDB
 - S3
-- Cognito
-
-**Event Processing:**
 - EventBridge
-- Kinesis Data Streams
-- SQS
+- SQS and SNS for messaging
 
-**AI/ML:**
-- AWS Bedrock 
-
-**Monitoring:**
-- CloudWatch Logs & Metrics
-- CloudWatch Alarms
-- SNS Notifications
+Monitoring and observability:
+- CloudWatch logs, metrics, and alarms
 - AWS Lambda Powertools
 
-**IaC:**
-- AWS CDK (Python)
-- CDK-nag for compliance
+Infrastructure management:
+- AWS CDK with Python
+- CDK-nag for security validation
 
----
+## Repository Status
 
-## 📝 Best Practices
-
-### Lambda Functions
-- Use Powertools for logging/tracing
-- Implement DLQs for reliability
-- Optimize memory for performance
-- Use environment variables for config
-
-### DynamoDB
-- Use on-demand billing for variable workloads
-- Implement projection expressions
-- Use boto3 client for performance
-- Parallel queries where possible
-
-### API Gateway
-- Enable CloudWatch logging
-- Configure throttling
-- Use custom authorizers
-- Implement proper error handling
-
-### Security
-- Least privilege IAM policies
-- Enable encryption at rest
-- Use Cognito for authentication
-- Validate all inputs
-
----
-
-## 🤝 Contributing
-
-This is a personal learning repository. Feel free to fork and adapt for your own projects.
-
----
-
-**Built with ❤️ using AWS CDK**
-
+This repository contains personal learning projects. 
