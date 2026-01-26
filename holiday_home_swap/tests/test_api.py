@@ -6,6 +6,9 @@ from fastapi import HTTPException
 from app.main import app
 from app.db import get_db
 from app.services.auth import get_current_user
+from datetime import datetime, timezone, timedelta
+
+
 
 
 @pytest.fixture
@@ -52,7 +55,7 @@ def override_auth(test_app, mock_current_user):
         return mock_current_user
     
     test_app.dependency_overrides[get_current_user] = _get_current_user
-    yield
+    yield mock_current_user
     test_app.dependency_overrides.clear()
 
 
@@ -78,7 +81,6 @@ fake_token_response = {
 def test_create_user_success(mock_user_class, client, fake_db, override_db):
     fake_db.query.return_value.filter.return_value.first.return_value = None
     
-    # Mock the User class constructor
     mock_user_instance = Mock()
     mock_user_instance.id = 1
     mock_user_instance.name = fake_user["name"]
@@ -199,7 +201,7 @@ def test_invalid_password_format(client, fake_db, override_db, invalid_password,
     
     assert len(password_errors) > 0, "Password field should have validation error"
     
-    # Check specific error type
+    
     error_msg = password_errors[0]["msg"].lower()
     if expected_error == "too_short":
         assert "at least 8 characters" in error_msg or "too short" in error_msg
@@ -332,3 +334,70 @@ def test_update_user_preferences_unauthorized(client, fake_db, override_db):
     assert response.json()["detail"] == "Not authenticated"
 
 
+def test_update_user_preferences_invalid_data(client, fake_db, override_db, override_auth):
+    invalid_preferences = {
+        "preferred_locations": "Not a list",  
+        "min_rooms": -1,                      
+    }
+    
+    response = client.put("/api/v1/users/preferences", json=invalid_preferences)
+    
+    assert response.status_code == 422
+
+@patch("app.api.routes.Home")
+def test_create_home_success(mock_home_class, client, fake_db, override_db, override_auth):
+
+    future_date_from = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    future_date_to = future_date_from + timedelta(days=7)
+
+    mock_home_instance = Mock()
+    mock_home_instance.id = 1
+    mock_home_instance.name = "Cozy Cottage"
+    mock_home_instance.location = "Rotterdam"
+    mock_home_instance.room_count = 3
+    mock_home_instance.home_type = "cottage"
+    mock_home_instance.amenities = ["wifi", "kitchen", "parking"]
+    mock_home_instance.house_rules = {
+        "smoking_allowed": False,
+        "pets_allowed": True,
+        "max_guests": 4,
+        "quiet_hours": "22:00-08:00"
+    }
+    mock_home_instance.photos = ["photo1.jpg", "photo2.jpg"]
+    mock_home_instance.available_from = future_date_from
+    mock_home_instance.available_to = future_date_to
+    mock_home_instance.owner_id = override_auth.id  
+
+    mock_home_class.return_value = mock_home_instance
+
+    home_data = {
+        "name": "Cozy Cottage",
+        "location": "Rotterdam",
+        "room_count": 3,
+        "home_type": "cottage",
+        "amenities": ["wifi", "kitchen", "parking"],
+        "house_rules": {
+            "smoking_allowed": False,
+            "pets_allowed": True,
+            "max_guests": 4,
+            "quiet_hours": "22:00-08:00"
+        },
+        "photos": ["photo1.jpg", "photo2.jpg"],
+        "available_from": future_date_from.isoformat(),
+        "available_to": future_date_to.isoformat()
+    }
+
+    response = client.post("/api/v1/homes/", json=home_data)
+
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["name"] == "Cozy Cottage"
+    assert body["location"] == "Rotterdam"
+    assert body["room_count"] == 3
+    assert body["home_type"] == "cottage"
+    assert body["owner_id"] == override_auth.id
+
+    fake_db.add.assert_called_once()
+    fake_db.commit.assert_called_once()
+    fake_db.refresh.assert_called_once()
