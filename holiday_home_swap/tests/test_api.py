@@ -415,3 +415,24 @@ def test_create_home_unauthorized(client, fake_db, override_db, sample_home_data
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+def test_create_home_missing_fields(client, fake_db, override_db, override_auth):
+    incomplete_home_data = {
+        "name": "Cozy Cottage",
+        "location": "Rotterdam", 
+    }
+
+    response = client.post("/api/v1/homes", json=incomplete_home_data)
+
+    assert response.status_code == 422
+
+    errors = response.json()["detail"]
+    required_fields = ["room_count", "home_type", "available_from", "available_to"]
+    for field in required_fields:
+        assert any(err["loc"][-1] == field for err in errors)
+
+    fake_db.add.assert_not_called()
+    fake_db.commit.assert_not_called()
+    fake_db.refresh.assert_not_called()
+
+
