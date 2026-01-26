@@ -285,4 +285,50 @@ def test_protected_route_valid_token(client, fake_db, override_db, override_auth
     assert body["verified"] == 1
     assert body["profile_complete"] == 1
 
+def test_get_user_preferences_success(client, fake_db, override_db, override_auth):
+    response = client.get("/api/v1/users/preferences")
+    
+    assert response.status_code == 200
+    body = response.json()
+    assert "preferences" in body
+    assert "notification_settings" in body
+
+def test_get_user_preferences_unauthorized(client, fake_db, override_db):
+    response = client.get("/api/v1/users/preferences")
+    
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+def test_update_user_preferences_success(client, fake_db, override_db, override_auth):
+    preferences_data = {
+        "preferred_locations": ["Rotterdam", "Amsterdam"],
+        "home_types": ["apartment", "house"],
+        "min_rooms": 2,
+        "max_rooms": 4,
+        "required_amenities": ["wifi", "kitchen"],
+        "deal_breakers": ["smoking"]
+    }
+    
+    response = client.put("/api/v1/users/preferences", json=preferences_data)
+    
+    assert response.status_code == 200
+    body = response.json()
+    
+    assert body["preferences"]["preferred_locations"] == ["Rotterdam", "Amsterdam"]
+    assert body["preferences"]["home_types"] == ["apartment", "house"]
+    assert body["preferences"]["min_rooms"] == 2
+    assert body["preferences"]["max_rooms"] == 4
+
+
+def test_update_user_preferences_unauthorized(client, fake_db, override_db):
+    new_preferences = {
+        "preferences": {"location": "heaven", "type": "apartment"},
+        "notification_settings": {"email_notifications": True}
+    }
+    
+    response = client.put("/api/v1/users/preferences", json=new_preferences)
+    
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
 
