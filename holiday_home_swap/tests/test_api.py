@@ -59,6 +59,30 @@ def override_auth(test_app, mock_current_user):
     test_app.dependency_overrides.clear()
 
 
+@pytest.fixture
+def sample_home_data():
+    """Sample home data for testing"""
+    future_date_from = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    future_date_to = future_date_from + timedelta(days=7)
+    
+    return {
+        "name": "Cozy Cottage",
+        "location": "Rotterdam", 
+        "room_count": 3,
+        "home_type": "cottage",
+        "amenities": ["wifi", "kitchen", "parking"],
+        "house_rules": {
+            "smoking_allowed": False,
+            "pets_allowed": True,
+            "max_guests": 4,
+            "quiet_hours": "22:00-08:00"
+        },
+        "photos": ["photo1.jpg", "photo2.jpg"],
+        "available_from": future_date_from.isoformat(),
+        "available_to": future_date_to.isoformat()
+    }
+
+
 fake_user = {
     "name": "Test User",
     "email": "example@example.com",
@@ -345,11 +369,12 @@ def test_update_user_preferences_invalid_data(client, fake_db, override_db, over
     assert response.status_code == 422
 
 @patch("app.api.routes.Home")
-def test_create_home_success(mock_home_class, client, fake_db, override_db, override_auth):
+def test_create_home_success(mock_home_class, client, fake_db, override_db, override_auth, sample_home_data):
 
-    future_date_from = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
-    future_date_to = future_date_from + timedelta(days=7)
-
+    available_from = datetime.fromisoformat(sample_home_data["available_from"].replace('Z', '+00:00'))
+    available_to = datetime.fromisoformat(sample_home_data["available_to"].replace('Z', '+00:00'))
+    
+  
     mock_home_instance = Mock()
     mock_home_instance.id = 1
     mock_home_instance.name = "Cozy Cottage"
@@ -364,30 +389,13 @@ def test_create_home_success(mock_home_class, client, fake_db, override_db, over
         "quiet_hours": "22:00-08:00"
     }
     mock_home_instance.photos = ["photo1.jpg", "photo2.jpg"]
-    mock_home_instance.available_from = future_date_from
-    mock_home_instance.available_to = future_date_to
-    mock_home_instance.owner_id = override_auth.id  
+    mock_home_instance.available_from = available_from
+    mock_home_instance.available_to = available_to
+    mock_home_instance.owner_id = 1
 
     mock_home_class.return_value = mock_home_instance
 
-    home_data = {
-        "name": "Cozy Cottage",
-        "location": "Rotterdam",
-        "room_count": 3,
-        "home_type": "cottage",
-        "amenities": ["wifi", "kitchen", "parking"],
-        "house_rules": {
-            "smoking_allowed": False,
-            "pets_allowed": True,
-            "max_guests": 4,
-            "quiet_hours": "22:00-08:00"
-        },
-        "photos": ["photo1.jpg", "photo2.jpg"],
-        "available_from": future_date_from.isoformat(),
-        "available_to": future_date_to.isoformat()
-    }
-
-    response = client.post("/api/v1/homes/", json=home_data)
+    response = client.post("/api/v1/homes", json=sample_home_data)
 
     assert response.status_code == 200
 
@@ -396,8 +404,14 @@ def test_create_home_success(mock_home_class, client, fake_db, override_db, over
     assert body["location"] == "Rotterdam"
     assert body["room_count"] == 3
     assert body["home_type"] == "cottage"
-    assert body["owner_id"] == override_auth.id
-
+    assert body["owner_id"] == 1
+    
     fake_db.add.assert_called_once()
     fake_db.commit.assert_called_once()
     fake_db.refresh.assert_called_once()
+
+def test_create_home_unauthorized(client, fake_db, override_db, sample_home_data):
+    response = client.post("/api/v1/homes", json=sample_home_data)
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
