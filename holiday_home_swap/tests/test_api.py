@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from app.main import app
 from app.db import get_db
+from app.services.auth import get_current_user
 
 
 @pytest.fixture
@@ -28,6 +29,29 @@ def override_db(test_app, fake_db):
         yield fake_db
 
     test_app.dependency_overrides[get_db] = fake_get_db
+    yield
+    test_app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def mock_current_user():
+    mock_user = Mock()
+    mock_user.id = 1
+    mock_user.name = "Test User"
+    mock_user.email = "test@example.com"
+    mock_user.verified = 1
+    mock_user.profile_complete = 1
+    mock_user.preferences = None
+    mock_user.notification_settings = None
+    return mock_user
+
+
+@pytest.fixture
+def override_auth(test_app, mock_current_user):
+    def _get_current_user():
+        return mock_current_user
+    
+    test_app.dependency_overrides[get_current_user] = _get_current_user
     yield
     test_app.dependency_overrides.clear()
 
@@ -219,6 +243,8 @@ def test_login_user_invalid_credentials(mock_login_user, client, fake_db, overri
     assert response.json()["detail"] == "Invalid email or password"
     mock_login_user.assert_called_once_with(fake_db, "test@example.com", "wrongpassword")
 
+
+
 @pytest.mark.parametrize(
     "login_data, missing_field",
     [
@@ -234,3 +260,29 @@ def test_login_user_missing_fields(client, login_data, fake_db, missing_field, o
 
     errors = response.json()["detail"]
     assert any(err["loc"][-1] == missing_field for err in errors)
+
+
+def test_protected_route_unauthorized(client, fake_db, override_db):
+    response = client.get("/api/v1/auth/me")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+def test_protected_route_invalid_token(client, fake_db, override_db):
+    headers = {"Authorization": "Bearer invalid_token_123"}
+    response = client.get("/api/v1/auth/me", headers=headers) 
+    assert response.status_code == 401
+
+def test_protected_route_valid_token(client, fake_db, override_db, override_auth):
+    headers = {"Authorization": "Bearer valid_token_123"}
+    response = client.get("/api/v1/auth/me", headers=headers)
+    
+    assert response.status_code == 200
+    body = response.json()
+    assert body["email"] == "test@example.com"
+    assert body["name"] == "Test User"
+    assert body["id"] == 1
+    assert body["verified"] == 1
+    assert body["profile_complete"] == 1
+
+
