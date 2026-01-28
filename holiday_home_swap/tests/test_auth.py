@@ -1,86 +1,6 @@
 import pytest
-from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch
 from fastapi import HTTPException
-
-from app.main import app
-from app.db import get_db
-from app.services.auth import get_current_user
-from datetime import datetime, timezone, timedelta
-
-
-
-
-@pytest.fixture
-def test_app():
-    return app
-
-
-@pytest.fixture
-def client(test_app):
-    return TestClient(test_app)
-
-
-@pytest.fixture
-def fake_db():
-    db = Mock()
-    return db
-
-@pytest.fixture
-def override_db(test_app, fake_db):
-    def fake_get_db():
-        yield fake_db
-
-    test_app.dependency_overrides[get_db] = fake_get_db
-    yield
-    test_app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def mock_current_user():
-    mock_user = Mock()
-    mock_user.id = 1
-    mock_user.name = "Test User"
-    mock_user.email = "test@example.com"
-    mock_user.verified = 1
-    mock_user.profile_complete = 1
-    mock_user.preferences = None
-    mock_user.notification_settings = None
-    return mock_user
-
-
-@pytest.fixture
-def override_auth(test_app, mock_current_user):
-    def _get_current_user():
-        return mock_current_user
-    
-    test_app.dependency_overrides[get_current_user] = _get_current_user
-    yield mock_current_user
-    test_app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def sample_home_data():
-    """Sample home data for testing"""
-    future_date_from = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
-    future_date_to = future_date_from + timedelta(days=7)
-    
-    return {
-        "name": "Cozy Cottage",
-        "location": "Rotterdam", 
-        "room_count": 3,
-        "home_type": "cottage",
-        "amenities": ["wifi", "kitchen", "parking"],
-        "house_rules": {
-            "smoking_allowed": False,
-            "pets_allowed": True,
-            "max_guests": 4,
-            "quiet_hours": "22:00-08:00"
-        },
-        "photos": ["photo1.jpg", "photo2.jpg"],
-        "available_from": future_date_from.isoformat(),
-        "available_to": future_date_to.isoformat()
-    }
 
 
 fake_user = {
@@ -93,12 +13,6 @@ fake_login_data = {
     "email": "test@example.com",
     "password": "password123"
 }
-
-fake_token_response = {
-    "access_token": "fake_jwt_token_12345",
-    "token_type": "bearer"
-}
-
 
 
 @patch('app.api.routes.User')
@@ -146,7 +60,6 @@ def test_user_already_exists(client, fake_db, override_db):
     fake_db.refresh.assert_not_called()
 
 
-
 @pytest.mark.parametrize(
     "bad_user, missing_field",
     [
@@ -158,19 +71,16 @@ def test_user_already_exists(client, fake_db, override_db):
 def test_create_user_missing_fields(client, fake_db, override_db, bad_user, missing_field):
     response = client.post("/api/v1/users/", json=bad_user)
 
-    
     assert response.status_code == 422
 
     errors = response.json()["detail"]
-
-    
     assert any(err["loc"][-1] == missing_field for err in errors)
 
-    
     fake_db.query.assert_not_called()
     fake_db.add.assert_not_called()
     fake_db.commit.assert_not_called()
     fake_db.refresh.assert_not_called()
+
 
 @pytest.mark.parametrize(
     "weak_password",
@@ -182,8 +92,8 @@ def test_create_user_missing_fields(client, fake_db, override_db, bad_user, miss
         }
     ]
 )
-def test_create_user_very_short_password(client, fake_db, override_db,weak_password):
-    response = client.post("/api/v1/users/", json= weak_password)
+def test_create_user_very_short_password(client, fake_db, override_db, weak_password):
+    response = client.post("/api/v1/users/", json=weak_password)
 
     assert response.status_code == 422
     errors = response.json()["detail"]
@@ -194,7 +104,6 @@ def test_create_user_very_short_password(client, fake_db, override_db,weak_passw
     fake_db.add.assert_not_called()
     fake_db.commit.assert_not_called()
     fake_db.refresh.assert_not_called()
-
 
 
 @pytest.mark.parametrize(
@@ -225,19 +134,16 @@ def test_invalid_password_format(client, fake_db, override_db, invalid_password,
     
     assert len(password_errors) > 0, "Password field should have validation error"
     
-    
     error_msg = password_errors[0]["msg"].lower()
     if expected_error == "too_short":
         assert "at least 8 characters" in error_msg or "too short" in error_msg
     elif expected_error == "too_long":
         assert "at most 16 characters" in error_msg or "too long" in error_msg
     
-    
     fake_db.query.assert_not_called()
     fake_db.add.assert_not_called()
     fake_db.commit.assert_not_called()
     fake_db.refresh.assert_not_called()
-
 
 
 @patch('app.api.routes.login_user')
@@ -270,7 +176,6 @@ def test_login_user_invalid_credentials(mock_login_user, client, fake_db, overri
     mock_login_user.assert_called_once_with(fake_db, "test@example.com", "wrongpassword")
 
 
-
 @pytest.mark.parametrize(
     "login_data, missing_field",
     [
@@ -288,16 +193,38 @@ def test_login_user_missing_fields(client, login_data, fake_db, missing_field, o
     assert any(err["loc"][-1] == missing_field for err in errors)
 
 
+@patch('app.api.routes.login_user')
+def test_login_for_access_token_success(mock_login_user, client, fake_db, override_db):
+    mock_login_user.return_value = {
+        "access_token": "fake_jwt_token_12345", 
+        "token_type": "bearer"
+    }
+    
+    form_data = {
+        "username": "test@example.com",
+        "password": "password123"
+    }
+    
+    response = client.post("/api/v1/auth/token", data=form_data)
+    
+    assert response.status_code == 200
+    body = response.json()
+    assert body["access_token"] == "fake_jwt_token_12345"
+    assert body["token_type"] == "bearer"
+
+
 def test_protected_route_unauthorized(client, fake_db, override_db):
     response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
+
 def test_protected_route_invalid_token(client, fake_db, override_db):
     headers = {"Authorization": "Bearer invalid_token_123"}
     response = client.get("/api/v1/auth/me", headers=headers) 
     assert response.status_code == 401
+
 
 def test_protected_route_valid_token(client, fake_db, override_db, override_auth):
     headers = {"Authorization": "Bearer valid_token_123"}
@@ -311,6 +238,7 @@ def test_protected_route_valid_token(client, fake_db, override_db, override_auth
     assert body["verified"] == 1
     assert body["profile_complete"] == 1
 
+
 def test_get_user_preferences_success(client, fake_db, override_db, override_auth):
     response = client.get("/api/v1/users/preferences")
     
@@ -319,11 +247,13 @@ def test_get_user_preferences_success(client, fake_db, override_db, override_aut
     assert "preferences" in body
     assert "notification_settings" in body
 
+
 def test_get_user_preferences_unauthorized(client, fake_db, override_db):
     response = client.get("/api/v1/users/preferences")
     
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
 
 def test_update_user_preferences_success(client, fake_db, override_db, override_auth):
     preferences_data = {
@@ -367,72 +297,3 @@ def test_update_user_preferences_invalid_data(client, fake_db, override_db, over
     response = client.put("/api/v1/users/preferences", json=invalid_preferences)
     
     assert response.status_code == 422
-
-@patch("app.api.routes.Home")
-def test_create_home_success(mock_home_class, client, fake_db, override_db, override_auth, sample_home_data):
-
-    available_from = datetime.fromisoformat(sample_home_data["available_from"].replace('Z', '+00:00'))
-    available_to = datetime.fromisoformat(sample_home_data["available_to"].replace('Z', '+00:00'))
-    
-  
-    mock_home_instance = Mock()
-    mock_home_instance.id = 1
-    mock_home_instance.name = "Cozy Cottage"
-    mock_home_instance.location = "Rotterdam"
-    mock_home_instance.room_count = 3
-    mock_home_instance.home_type = "cottage"
-    mock_home_instance.amenities = ["wifi", "kitchen", "parking"]
-    mock_home_instance.house_rules = {
-        "smoking_allowed": False,
-        "pets_allowed": True,
-        "max_guests": 4,
-        "quiet_hours": "22:00-08:00"
-    }
-    mock_home_instance.photos = ["photo1.jpg", "photo2.jpg"]
-    mock_home_instance.available_from = available_from
-    mock_home_instance.available_to = available_to
-    mock_home_instance.owner_id = 1
-
-    mock_home_class.return_value = mock_home_instance
-
-    response = client.post("/api/v1/homes", json=sample_home_data)
-
-    assert response.status_code == 200
-
-    body = response.json()
-    assert body["name"] == "Cozy Cottage"
-    assert body["location"] == "Rotterdam"
-    assert body["room_count"] == 3
-    assert body["home_type"] == "cottage"
-    assert body["owner_id"] == 1
-    
-    fake_db.add.assert_called_once()
-    fake_db.commit.assert_called_once()
-    fake_db.refresh.assert_called_once()
-
-def test_create_home_unauthorized(client, fake_db, override_db, sample_home_data):
-    response = client.post("/api/v1/homes", json=sample_home_data)
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Not authenticated"
-
-def test_create_home_missing_fields(client, fake_db, override_db, override_auth):
-    incomplete_home_data = {
-        "name": "Cozy Cottage",
-        "location": "Rotterdam", 
-    }
-
-    response = client.post("/api/v1/homes", json=incomplete_home_data)
-
-    assert response.status_code == 422
-
-    errors = response.json()["detail"]
-    required_fields = ["room_count", "home_type", "available_from", "available_to"]
-    for field in required_fields:
-        assert any(err["loc"][-1] == field for err in errors)
-
-    fake_db.add.assert_not_called()
-    fake_db.commit.assert_not_called()
-    fake_db.refresh.assert_not_called()
-
-

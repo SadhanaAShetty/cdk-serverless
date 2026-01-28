@@ -233,6 +233,3 @@ Infrastructure management:
 - AWS CDK with Python
 - CDK-nag for security validation
 
-## Repository Status
-
-This repository contains personal learning projects. 
