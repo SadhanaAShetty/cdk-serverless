@@ -50,4 +50,3 @@ A FastAPI-based platform for home exchange between travelers. Users can list the
 
 
 
-
