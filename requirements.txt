@@ -4,7 +4,7 @@ python-dotenv>=1.0.0
 datetime
 boto3
 python-jose
-pytest>=7
+pytest>=7.4.0
 moto==5.1.21
 pytest-freezegun
 requests
