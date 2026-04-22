@@ -40,5 +40,5 @@ reportlab==4.4.10
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.22.0
-httpx>=0.25.0
+httpx>=0.28.1
 
